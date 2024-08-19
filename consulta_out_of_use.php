@@ -8,7 +8,7 @@ if (!isset($_SESSION['username']) || $_SESSION['role'] != 'consulta') {
 require 'config_consulta.php';
 $conn = getConsultaConnection();
 
-$sql = "SELECT * FROM instruments_out_of_use";
+$sql = "SELECT * FROM InstrumentsOutOfUse";
 $result = $conn->query($sql);
 
 if (!$result) {
@@ -149,9 +149,6 @@ if (!$result) {
                     <th>Número de Serie</th>
                     <th>Fecha de Calibración</th>
                     <th>Fecha de Vencimiento</th>
-                    <th>Número de Certificado</th>
-                    <th>Estado</th>
-                    <th>Comentarios</th>
                     <th>Razón de Remoción</th>
                     <th>Fecha de Remoción</th>
                 </tr>
@@ -166,9 +163,6 @@ if (!$result) {
                         <td><?php echo htmlspecialchars($row['SerialNumber']); ?></td>
                         <td><?php echo htmlspecialchars($row['CalDate']); ?></td>
                         <td><?php echo htmlspecialchars($row['DueDate']); ?></td>
-                        <td><?php echo htmlspecialchars($row['CertificateNo']); ?></td>
-                        <td><?php echo htmlspecialchars($row['Status']); ?></td>
-                        <td><?php echo htmlspecialchars($row['Comments']); ?></td>
                         <td><?php echo isset($row['Reason']) ? htmlspecialchars($row['Reason']) : 'Obsoleto'; ?></td>
                         <td><?php echo isset($row['DateRemoved']) ? htmlspecialchars($row['DateRemoved']) : 'N/A'; ?></td>
                     </tr>

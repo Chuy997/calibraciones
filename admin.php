@@ -34,7 +34,7 @@ if (!$result) {
         .table thead.thead-dark th {
             background-color: #333333;
             border-color: #444444;
-            color: #ffffff; /* Color blanco para el texto de las columnas */
+            color: #ffffff;
         }
 
         .table-striped tbody tr:nth-of-type(odd) {
@@ -77,7 +77,7 @@ if (!$result) {
         .btn-warning {
             background-color: #ffc107;
             border-color: #ffc107;
-            color: #000; /* Texto negro para mayor contraste */
+            color: #000;
         }
 
         .btn-warning:hover {
@@ -152,15 +152,16 @@ if (!$result) {
         <table class="table table-striped" id="instrumentsTable">
             <thead class="thead-dark">
                 <tr>
-                    <th onclick="sortTable(0)">ID</th>
-                    <th onclick="sortTable(1)">Descripción</th>
-                    <th onclick="sortTable(2)">Marca</th>
-                    <th onclick="sortTable(3)">Modelo</th>
-                    <th onclick="sortTable(4)">Número de Serie</th>
-                    <th onclick="sortTable(5)">Fecha de Calibración</th>
-                    <th onclick="sortTable(6)">Fecha de Vencimiento</th>
-                    <th onclick="sortTable(7)">Número de Certificado</th>
-                    <th onclick="sortTable(9)">Comentarios</th>
+                    <th>ID</th>
+                    <th>Picture</th>
+                    <th>Descripción</th>
+                    <th>Marca</th>
+                    <th>Modelo</th>
+                    <th>Número de Serie</th>
+                    <th>Fecha de Calibración</th>
+                    <th>Fecha de Vencimiento</th>
+                    <th>Estado</th>
+                    <th>Comentarios</th>
                     <th>Acciones</th>
                 </tr>
             </thead>
@@ -168,13 +169,14 @@ if (!$result) {
             <?php while($row = $result->fetch_assoc()) { ?>
                 <tr>
                     <td><?php echo htmlspecialchars($row['ID']); ?></td>
+                    <td><a href="<?php echo htmlspecialchars($row['Picture']); ?>" target="_blank">Ver Foto</a></td>
                     <td><?php echo htmlspecialchars($row['Description']); ?></td>
                     <td><?php echo htmlspecialchars($row['Brand']); ?></td>
                     <td><?php echo htmlspecialchars($row['Model']); ?></td>
                     <td><?php echo htmlspecialchars($row['SerialNumber']); ?></td>
                     <td><?php echo htmlspecialchars($row['CalDate']); ?></td>
                     <td><?php echo htmlspecialchars($row['DueDate']); ?></td>
-                    <td><?php echo htmlspecialchars($row['CertificateNo']); ?></td>
+                    <td><?php echo htmlspecialchars($row['Status']); ?></td>
                     <td><?php echo htmlspecialchars($row['Comments']); ?></td>
                     <td class="actions">
                         <div class="btn-group" role="group">
@@ -182,6 +184,7 @@ if (!$result) {
                             <a class="btn btn-info btn-sm" href="history.php?id=<?php echo $row['ID']; ?>"><i class="fas fa-history"></i> Ver Historial</a>
                             <a class="btn btn-warning btn-sm" href="move_out_of_use.php?id=<?php echo $row['ID']; ?>" title="Mover a Fuera de Uso"><i class="fas fa-exclamation-triangle"></i> Mover</a>
                         </div>
+                    </td>
                     </td>
                 </tr>
             <?php } ?>

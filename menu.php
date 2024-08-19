@@ -11,7 +11,6 @@ if (!isset($_SESSION)) {
         <?php if ($_SESSION['role'] == 'admin'): ?>
             <li><a href="admin.php">Administrar Instrumentos</a></li>
             <li><a href="out_of_use.php">Instrumentos Fuera de Uso</a></li>
-            <li><a href="history.php">Historial de Actualizaciones</a></li>
         <?php endif; ?>
         <?php if ($_SESSION['role'] == 'consulta'): ?>
             <li><a href="consulta.php">Consulta</a></li>

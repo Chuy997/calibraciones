@@ -25,8 +25,9 @@ if (!isset($_SESSION['username'])) {
 
         .container {
             text-align: center;
-            max-width: 900px;
+            max-width: 90%;
             width: 90%;
+            height: 100%;
             background-color: #1e1e1e;
             padding: 20px;
             border-radius: 10px;
@@ -73,7 +74,7 @@ if (!isset($_SESSION['username'])) {
         }
 
         .image-container img {
-            max-width: 100%;
+            max-width: 90%;
             height: auto;
             border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
@@ -92,8 +93,6 @@ if (!isset($_SESSION['username'])) {
         <ul class="nav">
             <li><a href="admin.php">Administrar Instrumentos</a></li>
             <li><a href="out_of_use.php">Instrumentos Fuera de Uso</a></li>
-            <li><a href="history.php">Historial de Actualizaciones</a></li>
-            <li><a href="consulta.php">Consulta</a></li>
             <li><a href="logout.php">Cerrar Sesión</a></li>
         </ul>
         <div class="image-container">

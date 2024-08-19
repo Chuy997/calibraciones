@@ -30,6 +30,7 @@ if (isset($_GET['id']) || isset($_POST['id'])) {
 }
 
 $pdfPath = $instrument['PdfPath']; // Inicializar pdfPath con el valor actual de la base de datos
+$picturePath = $instrument['Picture']; // Inicializar picturePath con el valor actual de la base de datos
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $description = $_POST['description'];
@@ -38,7 +39,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $serialNumber = $_POST['serialNumber'];
     $calDate = $_POST['calDate'];
     $dueDate = $_POST['dueDate'];
-    $certificateNo = $_POST['certificateNo'];
     $status = $_POST['status'];
     $comments = $_POST['comments'];
 
@@ -64,15 +64,39 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 
-    $sql = "UPDATE Instruments SET Description = ?, Brand = ?, Model = ?, SerialNumber = ?, CalDate = ?, DueDate = ?, CertificateNo = ?, Status = ?, Comments = ? WHERE ID = ?";
+    // Manejo de la subida del archivo de imagen
+    if (isset($_FILES['picture']) && $_FILES['picture']['error'] == UPLOAD_ERR_OK) {
+        $pictureTmpPath = $_FILES['picture']['tmp_name'];
+        $pictureName = basename($_FILES['picture']['name']);
+        $uploadDir = 'uploads/';
+        $picturePath = $uploadDir . $pictureName;
+    
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0777, true);
+        }
+    
+        if (move_uploaded_file($pictureTmpPath, $picturePath)) {
+            // Actualizar la ruta del archivo de imagen en la base de datos
+            $sql = "UPDATE Instruments SET Picture = ? WHERE ID = ?";
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("ss", $picturePath, $id);
+            $stmt->execute();
+        } else {
+            die("Error al mover el archivo de imagen subido.");
+        }
+    }
+
+    // Update other fields in Instruments table
+    $sql = "UPDATE Instruments SET Description = ?, Brand = ?, Model = ?, SerialNumber = ?, CalDate = ?, DueDate = ?, Status = ?, Comments = ? WHERE ID = ?";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ssssssssss", $description, $brand, $model, $serialNumber, $calDate, $dueDate, $certificateNo, $status, $comments, $id);
+    $stmt->bind_param("sssssssss", $description, $brand, $model, $serialNumber, $calDate, $dueDate, $status, $comments, $id);
     if ($stmt->execute()) {
         // Insertar el historial de cambios
-        $sql_history = "INSERT INTO UpdateHistory (InstrumentID, Description, Brand, Model, SerialNumber, CalDate, DueDate, CertificateNo, Status, Comments, UpdatedAt, PdfPath) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)";
+        $sql_history = "INSERT INTO UpdateHistory (InstrumentID, Description, Brand, Model, SerialNumber, CalDate, DueDate, Status, Comments, UpdatedAt, PdfPath, Picture) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)";
         $stmt_history = $conn->prepare($sql_history);
-        $stmt_history->bind_param("sssssssssss", $id, $description, $brand, $model, $serialNumber, $calDate, $dueDate, $certificateNo, $status, $comments, $pdfPath);
+        $stmt_history->bind_param("sssssssssss", $id, $description, $brand, $model, $serialNumber, $calDate, $dueDate, $status, $comments, $pdfPath, $picturePath);
         $stmt_history->execute();
+
 
         header('Location: admin.php');
         exit();
@@ -160,8 +184,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <input type="date" class="form-control" id="dueDate" name="dueDate" value="<?php echo htmlspecialchars($instrument['DueDate']); ?>" required>
             </div>
             <div class="form-group">
-                <label for="certificateNo">Número de Certificado</label>
-                <input type="text" class="form-control" id="certificateNo" name="certificateNo" value="<?php echo htmlspecialchars($instrument['CertificateNo']); ?>" required>
+                <label for="picture">Subir Imagen del Instrumento</label>
+                <input type="file" class="form-control" id="picture" name="picture" accept="image/*">
+                <?php if (!empty($instrument['Picture'])): ?>
+                    <p>Imagen actual: <a href="<?php echo htmlspecialchars($instrument['Picture']); ?>" target="_blank">Ver Imagen</a></p>
+                <?php endif; ?>
             </div>
             <div class="form-group">
                 <label for="status">Estado</label>
@@ -180,6 +207,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <input type="file" class="form-control" id="pdf" name="pdf" accept="application/pdf">
                 <?php if (!empty($instrument['PdfPath'])): ?>
                     <p>Archivo actual: <a href="<?php echo htmlspecialchars($instrument['PdfPath']); ?>" target="_blank">Ver PDF</a></p>
+                <?php endif; ?>
+            </div>
+            <div class="form-group">
+                <label for="picture">Subir Foto del Instrumento</label>
+                <input type="file" class="form-control" id="picture" name="picture" accept="image/*">
+                <?php if (!empty($instrument['Picture'])): ?>
+                    <p>Foto actual: <a href="<?php echo htmlspecialchars($instrument['Picture']); ?>" target="_blank">Ver Foto</a></p>
                 <?php endif; ?>
             </div>
             <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Guardar Cambios</button>

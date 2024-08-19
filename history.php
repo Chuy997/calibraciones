@@ -75,11 +75,11 @@ if (isset($_GET['id'])) {
                         <th>Número de Serie</th>
                         <th>Fecha de Calibración</th>
                         <th>Fecha de Vencimiento</th>
-                        <th>Número de Certificado</th>
                         <th>Estado</th>
                         <th>Comentarios</th>
                         <th>Fecha de Actualización</th>
                         <th>Documento PDF</th>
+                        <th>Imagen</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -92,7 +92,6 @@ if (isset($_GET['id'])) {
                             <td><?php echo htmlspecialchars($row['SerialNumber']); ?></td>
                             <td><?php echo htmlspecialchars($row['CalDate']); ?></td>
                             <td><?php echo htmlspecialchars($row['DueDate']); ?></td>
-                            <td><?php echo htmlspecialchars($row['CertificateNo']); ?></td>
                             <td><?php echo htmlspecialchars($row['Status']); ?></td>
                             <td><?php echo htmlspecialchars($row['Comments']); ?></td>
                             <td><?php echo htmlspecialchars($row['UpdatedAt']); ?></td>
@@ -100,6 +99,13 @@ if (isset($_GET['id'])) {
                                 <?php if (!empty($row['PdfPath'])): ?>
                                     <a href="<?php echo htmlspecialchars($row['PdfPath']); ?>" target="_blank">Ver PDF</a>
                                     <button class="btn btn-info btn-sm" onclick="openPdf('<?php echo htmlspecialchars($row['PdfPath']); ?>')">Abrir</button>
+                                <?php else: ?>
+                                    No disponible
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if (!empty($row['Picture'])): ?>
+                                    <a href="<?php echo htmlspecialchars($row['Picture']); ?>" target="_blank">Ver Imagen</a>
                                 <?php else: ?>
                                     No disponible
                                 <?php endif; ?>

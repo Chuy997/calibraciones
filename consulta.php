@@ -8,7 +8,8 @@ if (!isset($_SESSION['username']) || $_SESSION['role'] != 'consulta') {
 require 'config_consulta.php';
 $conn = getConsultaConnection();
 
-$sql = "SELECT * FROM Instruments";
+// Modificar la consulta SQL para incluir la columna Picture
+$sql = "SELECT ID, Picture, Description, Brand, Model, SerialNumber, CalDate, DueDate, Status, Comments FROM Instruments";
 $result = $conn->query($sql);
 
 if (!$result) {
@@ -160,13 +161,13 @@ if (!$result) {
             <thead>
                 <tr>
                     <th>ID</th>
+                    <th>Picture</th>
                     <th>Descripción</th>
                     <th>Marca</th>
                     <th>Modelo</th>
                     <th>Número de Serie</th>
                     <th>Fecha de Calibración</th>
                     <th>Fecha de Vencimiento</th>
-                    <th>Número de Certificado</th>
                     <th>Estado</th>
                     <th>Comentarios</th>
                     <th>Acciones</th>
@@ -176,13 +177,13 @@ if (!$result) {
                 <?php while ($row = $result->fetch_assoc()): ?>
                     <tr>
                         <td><?php echo htmlspecialchars($row['ID']); ?></td>
+                        <td><a href="<?php echo htmlspecialchars($row['Picture']); ?>" target="_blank">Ver Foto</a></td>
                         <td><?php echo htmlspecialchars($row['Description']); ?></td>
                         <td><?php echo htmlspecialchars($row['Brand']); ?></td>
                         <td><?php echo htmlspecialchars($row['Model']); ?></td>
                         <td><?php echo htmlspecialchars($row['SerialNumber']); ?></td>
                         <td><?php echo htmlspecialchars($row['CalDate']); ?></td>
                         <td><?php echo htmlspecialchars($row['DueDate']); ?></td>
-                        <td><?php echo htmlspecialchars($row['CertificateNo']); ?></td>
                         <td><?php echo htmlspecialchars($row['Status']); ?></td>
                         <td><?php echo htmlspecialchars($row['Comments']); ?></td>
                         <td class="actions">

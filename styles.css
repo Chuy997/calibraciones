@@ -138,8 +138,8 @@ tr:hover {
 }
 
 .hero {
-    width: 100%;
-    height: 400px;
+    width: 90%;
+    height: 300px;
     background: url('calibration-image.jpg') no-repeat center center;
     background-size: cover;
     position: relative;
