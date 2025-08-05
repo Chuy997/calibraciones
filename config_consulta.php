@@ -1,8 +1,8 @@
 <?php
 function getConsultaConnection() {
     $servername = "localhost";
-    $username = "consulta";
-    $password = "consulta_password";
+    $username = "jmuro";
+    $password = "Monday.03";
     $dbname = "calibraciones";
 
     // Crear conexión

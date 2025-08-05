@@ -11,7 +11,7 @@ function generateMonthlyReport() {
     $firstDayOfMonth = date('Y-m-01');
     $lastDayOfMonth = date('Y-m-t');
 
-    $sql = "SELECT * FROM Instruments WHERE DueDate BETWEEN ? AND ?";
+    $sql = "SELECT * FROM instruments WHERE duedate BETWEEN ? AND ?";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("ss", $firstDayOfMonth, $lastDayOfMonth);
     $stmt->execute();

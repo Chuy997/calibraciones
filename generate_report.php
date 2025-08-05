@@ -1,24 +1,38 @@
 <?php
+// Mostrar todos los errores
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+
 require 'config.php';
 
-function generateMonthlyReport($month, $year) {
+    function generateMonthlyReport($month, $year) {
     $conn = getConnection('admin');
 
-    $firstDayOfMonth = "$year-$month-01";
-    $lastDayOfMonth = date("Y-m-t", strtotime($firstDayOfMonth));
+    $firstDayOfMonth = sprintf('%04d-%02d-01', $year, $month);
+    $lastDayOfMonth  = date("Y-m-t", strtotime($firstDayOfMonth));
 
-    $sql = "SELECT * FROM Instruments WHERE DueDate BETWEEN ? AND ?";
+    // Preparamos y ejecutamos la consulta
+    $sql  = "SELECT * FROM instruments WHERE duedate BETWEEN ? AND ?";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("ss", $firstDayOfMonth, $lastDayOfMonth);
     $stmt->execute();
     $result = $stmt->get_result();
 
-    $filename = 'reporte_calibraciones_' . $year . '_' . $month . '.csv';
-    $file = fopen($filename, 'w');
+    // Nombre y ruta del CSV en tmp
+    $filename = sprintf('reporte_calibraciones_%04d_%02d.csv', $year, $month);
+    $tmpDir   = sys_get_temp_dir();
+    $filePath = $tmpDir . DIRECTORY_SEPARATOR . $filename;
 
-    $headers = array('ID', 'Description', 'Brand', 'Model', 'Serial Number', 'HWID', 'Cal Date', 'Due Date', 'Days counter.', 'Comments');
+    // Abrimos para escritura en tmp
+    if (!$file = fopen($filePath, 'w')) {
+        die("No se pudo abrir el archivo para escritura: $filePath");
+    }
+
+    // Cabeceras
+    $headers = ['ID','Description','Brand','Model','Serial Number','HWID','CalDate','DueDate','DaysCounter','Comments'];
     fputcsv($file, $headers);
 
+    // Filas
     while ($row = $result->fetch_assoc()) {
         fputcsv($file, $row);
     }
@@ -27,17 +41,19 @@ function generateMonthlyReport($month, $year) {
     $stmt->close();
     $conn->close();
 
-    return $filename;
+    return $filePath;
 }
 
 if ($_SERVER['REQUEST_METHOD'] == 'GET' && isset($_GET['month']) && isset($_GET['year'])) {
     $month = $_GET['month'];
     $year = $_GET['year'];
-    $filename = generateMonthlyReport($month, $year);
-    header('Content-Type: application/csv');
-    header('Content-Disposition: attachment; filename="' . $filename . '";');
-    readfile($filename);
-    unlink($filename); // Delete the file after download
+    $filePath = generateMonthlyReport($month, $year);
+    $downloadName = basename($filePath);
+
+    header('Content-Type: text/csv');
+    header('Content-Disposition: attachment; filename="'.$downloadName.'";');
+    readfile($filePath);
+    unlink($filePath);
     exit();
 }
 ?>

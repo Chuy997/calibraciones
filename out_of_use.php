@@ -8,7 +8,7 @@ if (!isset($_SESSION['username']) || $_SESSION['role'] != 'admin') {
 require 'config.php';
 $conn = getConnection('admin');
 
-$sql = "SELECT * FROM InstrumentsOutOfUse";
+$sql = "SELECT * FROM instrumentsoutofuse";
 $result = $conn->query($sql);
 
 if (!$result) {

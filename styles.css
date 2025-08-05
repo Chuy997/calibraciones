@@ -1,3 +1,7 @@
+/* -------------------
+   Estilos Globales
+   ------------------- */
+
 body {
     font-family: 'Roboto', sans-serif;
     background-color: #121212;
@@ -50,7 +54,9 @@ h1 {
     color: #bb86fc;
 }
 
-input[type="text"], input[type="date"], textarea {
+input[type="text"],
+input[type="date"],
+textarea {
     width: calc(100% - 20px);
     padding: 10px;
     margin-top: 5px;
@@ -79,36 +85,6 @@ input[type="submit"] {
 
 input[type="submit"]:hover {
     background-color: #9f68d6;
-}
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 20px 0;
-}
-
-th, td {
-    border: 1px solid #444;
-    padding: 10px;
-    text-align: left;
-}
-
-th {
-    background-color: #333;
-    cursor: pointer;
-    transition: background-color 0.3s;
-}
-
-th:hover {
-    background-color: #444;
-}
-
-tr:nth-child(even) {
-    background-color: #1f1f1f;
-}
-
-tr:hover {
-    background-color: #333;
 }
 
 .actions a {
@@ -155,4 +131,60 @@ tr:hover {
     background-color: rgba(0, 0, 0, 0.6);
     padding: 10px 20px;
     border-radius: 4px;
+}
+
+/* -------------------
+   Mejora de Tablas
+   ------------------- */
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    color: #ffffff; 
+}
+
+/* Bordes y texto */
+th, td {
+    border: 1px solid #555;      /* Bordes más claros */
+    padding: 10px;
+    text-align: left;
+    color: #f8f9fa;              /* Texto aún más claro */
+}
+
+/* Encabezados oscuros y negrita */
+th {
+    background-color: #1f1f1f;   /* Más oscuro que el resto */
+    cursor: pointer;
+    transition: background-color 0.3s;
+    font-weight: 600;
+    color: #f8f9fa;
+}
+
+th:hover {
+    background-color: #2a2a2a;
+}
+
+/* Filas alternadas con contraste */
+tr:nth-child(odd) {
+    background-color: #2e2e2e;
+}
+tr:nth-child(even) {
+    background-color: #242424;
+}
+
+/* Hover para mejorar legibilidad */
+tr:hover {
+    background-color: #3a3a3a !important;
+}
+
+/* .table-striped en caso de usar esa clase */
+.table-striped tbody tr:nth-of-type(odd)  { background-color: #2e2e2e; }
+.table-striped tbody tr:nth-of-type(even) { background-color: #242424; }
+
+/* Opcional: leyendas de Chart.js */
+.chartjs-render-monitor,
+.chartjs-legend,
+.legend-label {
+    color: #f8f9fa !important;
 }

@@ -7,7 +7,28 @@ if (!isset($_SESSION['username']) || $_SESSION['role'] != 'consulta') {
 
 require 'config.php';
 $conn = getConnection('consulta');
-$sql = "SELECT * FROM Instruments";
+
+// Consulta con cálculo dinámico de estado:
+// - “Vencido” si DueDate < hoy
+// - “Próxima calibración” si DueDate entre hoy y hoy+30 días
+// - “Calibrado” en el resto de casos
+$sql = "
+    SELECT 
+        ID,
+        Description,
+        Brand,
+        Model,
+        SerialNumber,
+        CalDate,
+        DueDate,
+        CertificateNo,
+        CASE
+            WHEN CURRENT_DATE() > DueDate THEN 'Vencido'
+            WHEN DueDate BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) THEN 'Próxima calibración'
+            ELSE 'Calibrado'
+        END AS status_calculado
+    FROM instruments
+";
 $result = $conn->query($sql);
 
 if (!$result) {
@@ -17,6 +38,7 @@ if (!$result) {
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>Ver Instrumentos</title>
     <link rel="stylesheet" type="text/css" href="styles.css">
 </head>
@@ -29,26 +51,28 @@ if (!$result) {
             <thead>
                 <tr>
                     <th onclick="sortTable(0)">ID</th>
-                    <th onclick="sortTable(1)">Description</th>
-                    <th onclick="sortTable(2)">Brand</th>
-                    <th onclick="sortTable(3)">Model</th>
-                    <th onclick="sortTable(4)">Serial Number</th>
-                    <th onclick="sortTable(5)">Cal Date</th>
-                    <th onclick="sortTable(6)">Due Date</th>
-                    <th onclick="sortTable(7)">Certificate No.</th>
+                    <th onclick="sortTable(1)">Descripción</th>
+                    <th onclick="sortTable(2)">Marca</th>
+                    <th onclick="sortTable(3)">Modelo</th>
+                    <th onclick="sortTable(4)">Serial</th>
+                    <th onclick="sortTable(5)">Fecha Cal.</th>
+                    <th onclick="sortTable(6)">Fecha Venc.</th>
+                    <th onclick="sortTable(7)">Certificado</th>
+                    <th onclick="sortTable(8)">Estado</th>
                 </tr>
             </thead>
             <tbody>
             <?php while($row = $result->fetch_assoc()) { ?>
                 <tr>
-                    <td><?php echo htmlspecialchars($row['ID']); ?></td>
-                    <td><?php echo htmlspecialchars($row['Description']); ?></td>
-                    <td><?php echo htmlspecialchars($row['Brand']); ?></td>
-                    <td><?php echo htmlspecialchars($row['Model']); ?></td>
-                    <td><?php echo htmlspecialchars($row['SerialNumber']); ?></td>
-                    <td><?php echo htmlspecialchars($row['CalDate']); ?></td>
-                    <td><?php echo htmlspecialchars($row['DueDate']); ?></td>
-                    <td><?php echo htmlspecialchars($row['CertificateNo']); ?></td>
+                    <td><?= htmlspecialchars($row['ID']) ?></td>
+                    <td><?= htmlspecialchars($row['Description']) ?></td>
+                    <td><?= htmlspecialchars($row['Brand']) ?></td>
+                    <td><?= htmlspecialchars($row['Model']) ?></td>
+                    <td><?= htmlspecialchars($row['SerialNumber']) ?></td>
+                    <td><?= htmlspecialchars($row['CalDate']) ?></td>
+                    <td><?= htmlspecialchars($row['DueDate']) ?></td>
+                    <td><?= htmlspecialchars($row['CertificateNo']) ?></td>
+                    <td><?= htmlspecialchars($row['status_calculado']) ?></td>
                 </tr>
             <?php } ?>
             </tbody>
@@ -56,67 +80,33 @@ if (!$result) {
     </div>
 
     <script>
-        function filterTable() {
-            var input, filter, table, tr, td, i, j, txtValue;
-            input = document.getElementById("searchInput");
-            filter = input.value.toUpperCase();
-            table = document.getElementById("instrumentsTable");
-            tr = table.getElementsByTagName("tr");
+    // ——————— Funciones de búsqueda y orden ———————
 
-            for (i = 1; i < tr.length; i++) {
-                tr[i].style.display = "none";
-                td = tr[i].getElementsByTagName("td");
-                for (j = 0; j < td.length; j++) {
-                    if (td[j]) {
-                        txtValue = td[j].textContent || td[j].innerText;
-                        if (txtValue.toUpperCase().indexOf(filter) > -1) {
-                            tr[i].style.display = "";
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+    function filterTable() {
+        const filter = document.getElementById("searchInput").value.toUpperCase();
+        const rows = document.querySelectorAll("#instrumentsTable tbody tr");
+        rows.forEach(tr => {
+            tr.style.display = [...tr.cells].some(td =>
+                td.textContent.toUpperCase().includes(filter)
+            ) ? "" : "none";
+        });
+    }
 
-        function sortTable(columnIndex) {
-            var table, rows, switching, i, x, y, shouldSwitch, dir, switchCount = 0;
-            table = document.getElementById("instrumentsTable");
-            switching = true;
-            dir = "asc"; 
-            
-            while (switching) {
-                switching = false;
-                rows = table.rows;
-                
-                for (i = 1; i < (rows.length - 1); i++) {
-                    shouldSwitch = false;
-                    x = rows[i].getElementsByTagName("TD")[columnIndex];
-                    y = rows[i].getElementsByTagName("TD")[columnIndex];
-                    
-                    if (dir == "asc") {
-                        if (x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) {
-                            shouldSwitch = true;
-                            break;
-                        }
-                    } else if (dir == "desc") {
-                        if (x.innerHTML.toLowerCase() < y.innerHTML.toLowerCase()) {
-                            shouldSwitch = true;
-                            break;
-                        }
-                    }
-                }
-                if (shouldSwitch) {
-                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
-                    switching = true;
-                    switchCount++;
-                } else {
-                    if (switchCount == 0 && dir == "asc") {
-                        dir = "desc";
-                        switching = true;
-                    }
-                }
-            }
-        }
+    function sortTable(colIndex) {
+        const table = document.getElementById("instrumentsTable");
+        const tbody = table.tBodies[0];
+        const rows = Array.from(tbody.rows);
+        let asc = table.getAttribute("data-sort-dir") !== "asc";
+        rows.sort((a, b) => {
+            const v1 = a.cells[colIndex].textContent.trim();
+            const v2 = b.cells[colIndex].textContent.trim();
+            return asc
+                ? v1.localeCompare(v2, undefined, {numeric: true})
+                : v2.localeCompare(v1, undefined, {numeric: true});
+        });
+        rows.forEach(r => tbody.appendChild(r));
+        table.setAttribute("data-sort-dir", asc ? "asc" : "desc");
+    }
     </script>
 </body>
 </html>

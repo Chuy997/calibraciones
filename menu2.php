@@ -7,16 +7,7 @@ if (!isset($_SESSION)) {
 <nav>
   
     <ul class="nav">
-        <li><a href="index.php">Inicio</a></li>
-        <?php if ($_SESSION['role'] == 'admin'): ?>
-            <li><a href="admin.php">Administrar Instrumentos</a></li>
-            <li><a href="out_of_use.php">Instrumentos Fuera de Uso</a></li>
-            <li><a href="report.php">Reporte</a></li>
-        <?php endif; ?>
-        <?php if ($_SESSION['role'] == 'consulta'): ?>
-            <li><a href="consulta.php">Consulta</a></li>
-        <?php endif; ?>
-        <li><a href="logout.php">Cerrar Sesión</a></li>
+       
     </ul>
 </nav>
 

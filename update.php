@@ -1,6 +1,6 @@
 <?php
 session_start();
-if (!isset($_SESSION['username']) || $_SESSION['role'] != 'admin') {
+if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'admin') {
     header('Location: login.php');
     exit();
 }
@@ -8,215 +8,231 @@ if (!isset($_SESSION['username']) || $_SESSION['role'] != 'admin') {
 require 'config.php';
 $conn = getConnection('admin');
 
-// Verificar si el ID se ha proporcionado mediante GET (al cargar el formulario) o POST (al enviar el formulario)
-if (isset($_GET['id']) || isset($_POST['id'])) {
-    if (isset($_GET['id'])) {
-        $id = $_GET['id'];
-    } else {
-        $id = $_POST['id'];
-    }
-
-    $sql = "SELECT * FROM Instruments WHERE ID = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("s", $id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $instrument = $result->fetch_assoc();
-    if (!$instrument) {
-        die("Instrumento no encontrado.");
-    }
-} else {
-    die("ID no proporcionado.");
+// 1) Obtener y validar ID
+$id = $_REQUEST['id'] ?? null;
+if (!$id || !preg_match('/^[A-Za-z0-9_-]+$/', $id)) {
+    die("ID inválido.");
 }
 
-$pdfPath = $instrument['PdfPath']; // Inicializar pdfPath con el valor actual de la base de datos
-$picturePath = $instrument['Picture']; // Inicializar picturePath con el valor actual de la base de datos
+// 2) Cargar datos actuales del instrumento
+$stmt = $conn->prepare("SELECT * FROM instruments WHERE ID = ?");
+$stmt->bind_param("s", $id);
+$stmt->execute();
+$instrument = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+if (!$instrument) {
+    die("Instrumento no encontrado.");
+}
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $description = $_POST['description'];
-    $brand = $_POST['brand'];
-    $model = $_POST['model'];
-    $serialNumber = $_POST['serialNumber'];
-    $calDate = $_POST['calDate'];
-    $dueDate = $_POST['dueDate'];
-    $status = $_POST['status'];
-    $comments = $_POST['comments'];
+// Rutas actuales y CertificateNo (asegurar no nulo)
+$pdfPath       = $instrument['PdfPath'];
+$picturePath   = $instrument['Picture'];
+$certificateNo = $instrument['CertificateNo'] ?? '';
+if ($certificateNo === null) {
+    $certificateNo = '';
+}
 
-    // Manejo de la subida del archivo PDF
-    if (isset($_FILES['pdf']) && $_FILES['pdf']['error'] == UPLOAD_ERR_OK) {
-        $pdfTmpPath = $_FILES['pdf']['tmp_name'];
-        $pdfName = basename($_FILES['pdf']['name']);
-        $uploadDir = 'uploads/';
-        $pdfPath = $uploadDir . $pdfName;
+// 3) Si es POST, procesar formulario
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $description  = trim($_POST['description']);
+    $brand        = trim($_POST['brand']);
+    $model        = trim($_POST['model']);
+    $serialNumber = trim($_POST['serialNumber']);
+    $calDate      = $_POST['calDate'];
+    $dueDate      = $_POST['dueDate'];
+    $status       = $_POST['status'];
+    $comments     = trim($_POST['comments']);
 
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0777, true);
+    function handleUpload($field, $uploadDir) {
+        if (isset($_FILES[$field]) && $_FILES[$field]['error'] === UPLOAD_ERR_OK) {
+            $ext = pathinfo($_FILES[$field]['name'], PATHINFO_EXTENSION);
+            $newName = uniqid($field . '_') . '.' . $ext;
+            if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
+            $dest = $uploadDir . $newName;
+            if (move_uploaded_file($_FILES[$field]['tmp_name'], $dest)) {
+                return $dest;
+            } else {
+                throw new Exception("Error al mover el archivo $field.");
+            }
         }
-
-        if (move_uploaded_file($pdfTmpPath, $pdfPath)) {
-            // Actualizar la ruta del archivo PDF en la base de datos
-            $sql = "UPDATE Instruments SET PdfPath = ? WHERE ID = ?";
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param("ss", $pdfPath, $id);
-            $stmt->execute();
-        } else {
-            die("Error al mover el archivo subido.");
-        }
+        return null;
     }
 
-    // Manejo de la subida del archivo de imagen
-    if (isset($_FILES['picture']) && $_FILES['picture']['error'] == UPLOAD_ERR_OK) {
-        $pictureTmpPath = $_FILES['picture']['tmp_name'];
-        $pictureName = basename($_FILES['picture']['name']);
-        $uploadDir = 'uploads/';
-        $picturePath = $uploadDir . $pictureName;
-    
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0777, true);
+    try {
+        $conn->begin_transaction();
+
+        // c) Procesar PDF
+        $newPdf = handleUpload('pdf', 'uploads/');
+        if ($newPdf) {
+            $pdfPath = $newPdf;
+            $u = $conn->prepare("UPDATE instruments SET PdfPath = ? WHERE ID = ?");
+            $u->bind_param("ss", $pdfPath, $id);
+            $u->execute();
+            $u->close();
         }
-    
-        if (move_uploaded_file($pictureTmpPath, $picturePath)) {
-            // Actualizar la ruta del archivo de imagen en la base de datos
-            $sql = "UPDATE Instruments SET Picture = ? WHERE ID = ?";
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param("ss", $picturePath, $id);
-            $stmt->execute();
-        } else {
-            die("Error al mover el archivo de imagen subido.");
+
+        // d) Procesar imagen
+        $newPic = handleUpload('picture', 'uploads/');
+        if ($newPic) {
+            $picturePath = $newPic;
+            $u = $conn->prepare("UPDATE instruments SET Picture = ? WHERE ID = ?");
+            $u->bind_param("ss", $picturePath, $id);
+            $u->execute();
+            $u->close();
         }
-    }
 
-    // Update other fields in Instruments table
-    $sql = "UPDATE Instruments SET Description = ?, Brand = ?, Model = ?, SerialNumber = ?, CalDate = ?, DueDate = ?, Status = ?, Comments = ? WHERE ID = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("sssssssss", $description, $brand, $model, $serialNumber, $calDate, $dueDate, $status, $comments, $id);
-    if ($stmt->execute()) {
-        // Insertar el historial de cambios
-        $sql_history = "INSERT INTO UpdateHistory (InstrumentID, Description, Brand, Model, SerialNumber, CalDate, DueDate, Status, Comments, UpdatedAt, PdfPath, Picture) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)";
-        $stmt_history = $conn->prepare($sql_history);
-        $stmt_history->bind_param("sssssssssss", $id, $description, $brand, $model, $serialNumber, $calDate, $dueDate, $status, $comments, $pdfPath, $picturePath);
-        $stmt_history->execute();
+        // e) Actualizar datos principales
+        $upd = $conn->prepare("
+            UPDATE instruments
+            SET Description=?, Brand=?, Model=?, SerialNumber=?,
+                CalDate=?, DueDate=?, Status=?, Comments=?
+            WHERE ID=?
+        ");
+        $upd->bind_param(
+            "sssssssss",
+            $description,
+            $brand,
+            $model,
+            $serialNumber,
+            $calDate,
+            $dueDate,
+            $status,
+            $comments,
+            $id
+        );
+        $upd->execute();
+        $upd->close();
 
+        // f) Insertar historial
+        $hst = $conn->prepare("
+            INSERT INTO updatehistory
+              (InstrumentID, Description, Brand, Model, SerialNumber,
+               CalDate, DueDate, CertificateNo, Status, Comments, UpdatedAt, PdfPath, Picture)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
+        ");
+        $hst->bind_param(
+            "ssssssssssss",
+            $id,
+            $description,
+            $brand,
+            $model,
+            $serialNumber,
+            $calDate,
+            $dueDate,
+            $certificateNo,
+            $status,
+            $comments,
+            $pdfPath,
+            $picturePath
+        );
+        $hst->execute();
+        $hst->close();
 
+        $conn->commit();
         header('Location: admin.php');
         exit();
-    } else {
-        echo "Error al actualizar el instrumento: " . $stmt->error;
+
+    } catch (Exception $e) {
+        $conn->rollback();
+        die("Error: " . $e->getMessage());
     }
 }
 ?>
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>Actualizar Instrumento</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
     <style>
-        body {
-            background-color: #121212;
-            color: #e0e0e0;
-        }
-
-        .navbar, .card, .modal-content {
-            background-color: #1e1e1e;
-            color: #e0e0e0;
-        }
-
-        .form-control {
-            background-color: #2c2c2c;
-            color: #e0e0e0;
-            border: 1px solid #444444;
-        }
-
-        .form-control::placeholder {
-            color: #e0e0e0;
-        }
-
-        .btn-primary {
-            background-color: #007bff;
-            border-color: #007bff;
-            color: #ffffff;
-        }
-
-        .btn-primary:hover {
-            background-color: #0056b3;
-            border-color: #004085;
-        }
-        
-        .container {
-            margin-top: 20px;
-        }
+        body { background:#121212; color:#e0e0e0; }
+        .navbar, .card, .modal-content { background:#1e1e1e; color:#e0e0e0; }
+        .form-control { background:#2c2c2c; color:#e0e0e0; border:1px solid #444; }
+        .form-control::placeholder { color:#e0e0e0; }
+        .btn-primary { background:#007bff; border-color:#007bff; color:#fff; }
+        .btn-primary:hover { background:#0056b3; border-color:#004085; }
+        .container { margin-top:20px; }
     </style>
 </head>
 <body>
     <?php include 'menu.php'; ?>
     <div class="container">
         <h1 class="my-4">Actualizar Instrumento</h1>
-        <form method="POST" action="update.php" enctype="multipart/form-data">
-            <input type="hidden" name="id" value="<?php echo htmlspecialchars($instrument['ID']); ?>">
+        <form method="POST" action="update.php?id=<?= urlencode($id) ?>" enctype="multipart/form-data">
+            <input type="hidden" name="id" value="<?= htmlspecialchars($id) ?>">
 
-            <div class="form-group">
-                <label for="id">ID</label>
-                <input type="text" class="form-control" id="id" value="<?php echo htmlspecialchars($instrument['ID']); ?>" readonly>
-            </div>
-            <div class="form-group">
-                <label for="description">Descripción</label>
-                <input type="text" class="form-control" id="description" name="description" value="<?php echo htmlspecialchars($instrument['Description']); ?>" required>
-            </div>
-            <div class="form-group">
-                <label for="brand">Marca</label>
-                <input type="text" class="form-control" id="brand" name="brand" value="<?php echo htmlspecialchars($instrument['Brand']); ?>" required>
-            </div>
-            <div class="form-group">
-                <label for="model">Modelo</label>
-                <input type="text" class="form-control" id="model" name="model" value="<?php echo htmlspecialchars($instrument['Model']); ?>" required>
-            </div>
-            <div class="form-group">
-                <label for="serialNumber">Número de Serie</label>
-                <input type="text" class="form-control" id="serialNumber" name="serialNumber" value="<?php echo htmlspecialchars($instrument['SerialNumber']); ?>" required>
-            </div>
-            <div class="form-group">
-                <label for="calDate">Fecha de Calibración</label>
-                <input type="date" class="form-control" id="calDate" name="calDate" value="<?php echo htmlspecialchars($instrument['CalDate']); ?>" required>
-            </div>
-            <div class="form-group">
-                <label for="dueDate">Fecha de Vencimiento</label>
-                <input type="date" class="form-control" id="dueDate" name="dueDate" value="<?php echo htmlspecialchars($instrument['DueDate']); ?>" required>
-            </div>
-            <div class="form-group">
-                <label for="picture">Subir Imagen del Instrumento</label>
-                <input type="file" class="form-control" id="picture" name="picture" accept="image/*">
-                <?php if (!empty($instrument['Picture'])): ?>
-                    <p>Imagen actual: <a href="<?php echo htmlspecialchars($instrument['Picture']); ?>" target="_blank">Ver Imagen</a></p>
-                <?php endif; ?>
-            </div>
-            <div class="form-group">
-                <label for="status">Estado</label>
-                <select class="form-control" id="status" name="status" required>
-                    <option value="Calibrado" <?php if ($instrument['Status'] == 'Calibrado') echo 'selected'; ?>>Calibrado</option>
-                    <option value="Fuera de Calibración" <?php if ($instrument['Status'] == 'Fuera de Calibración') echo 'selected'; ?>>Fuera de Calibración</option>
-                    <option value="En Proceso de Calibración" <?php if ($instrument['Status'] == 'En Proceso de Calibración') echo 'selected'; ?>>En Proceso de Calibración</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="comments">Comentarios</label>
-                <textarea class="form-control" id="comments" name="comments" rows="3" required><?php echo htmlspecialchars($instrument['Comments']); ?></textarea>
-            </div>
+            <!-- Campos de texto -->
+            <?php foreach ([
+                'description'=>'Descripción',
+                'brand'=>'Marca',
+                'model'=>'Modelo',
+                'serialNumber'=>'Número de Serie'
+            ] as $field=>$label): ?>
+                <div class="form-group">
+                    <label for="<?= $field ?>"><?= $label ?></label>
+                    <input type="text" class="form-control" id="<?= $field ?>"
+                           name="<?= $field ?>"
+                           value="<?= htmlspecialchars($instrument[ ucfirst($field) ]) ?>"
+                           required>
+                </div>
+            <?php endforeach; ?>
+
+            <!-- Fechas -->
+            <?php foreach ([
+                'calDate'=>'Fecha de Calibración',
+                'dueDate'=>'Fecha de Vencimiento'
+            ] as $field=>$label): ?>
+                <div class="form-group">
+                    <label for="<?= $field ?>"><?= $label ?></label>
+                    <input type="date" class="form-control" id="<?= $field ?>"
+                           name="<?= $field ?>"
+                           value="<?= htmlspecialchars($instrument[ ucfirst($field) ]) ?>"
+                           required>
+                </div>
+            <?php endforeach; ?>
+
+            <!-- Upload PDF -->
             <div class="form-group">
                 <label for="pdf">Subir PDF del Proveedor</label>
                 <input type="file" class="form-control" id="pdf" name="pdf" accept="application/pdf">
-                <?php if (!empty($instrument['PdfPath'])): ?>
-                    <p>Archivo actual: <a href="<?php echo htmlspecialchars($instrument['PdfPath']); ?>" target="_blank">Ver PDF</a></p>
+                <?php if ($pdfPath): ?>
+                    <small>Actual: <a href="<?= htmlspecialchars($pdfPath) ?>" target="_blank">Ver PDF</a></small>
                 <?php endif; ?>
             </div>
+
+            <!-- Upload Imagen -->
             <div class="form-group">
                 <label for="picture">Subir Foto del Instrumento</label>
                 <input type="file" class="form-control" id="picture" name="picture" accept="image/*">
-                <?php if (!empty($instrument['Picture'])): ?>
-                    <p>Foto actual: <a href="<?php echo htmlspecialchars($instrument['Picture']); ?>" target="_blank">Ver Foto</a></p>
+                <?php if ($picturePath): ?>
+                    <small>Actual: <a href="<?= htmlspecialchars($picturePath) ?>" target="_blank">Ver Foto</a></small>
                 <?php endif; ?>
             </div>
-            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Guardar Cambios</button>
+
+            <!-- Estado -->
+            <div class="form-group">
+                <label for="status">Estado</label>
+                <select class="form-control" id="status" name="status" required>
+                    <?php foreach (['Calibrado','Próxima calibración','Vencido'] as $opt): ?>
+                        <option value="<?= $opt ?>" <?= $instrument['Status'] === $opt ? 'selected' : '' ?>>
+                            <?= $opt ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <!-- Comentarios -->
+            <div class="form-group">
+                <label for="comments">Comentarios</label>
+                <textarea class="form-control" id="comments" name="comments" rows="3" required><?= 
+                    htmlspecialchars($instrument['Comments']) 
+                ?></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i> Guardar Cambios
+            </button>
         </form>
     </div>
 
@@ -226,4 +242,4 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 </html>
 <?php
 $conn->close();
-?>
+?>```

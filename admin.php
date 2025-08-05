@@ -1,15 +1,50 @@
 <?php
+// /var/www/html/calibraciones/admin.php
+
+// Mostrar errores en desarrollo (quítalo en producción)
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 session_start();
-if (!isset($_SESSION['username']) || $_SESSION['role'] != 'admin') {
+if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'admin') {
     header('Location: login.php');
     exit();
 }
 
 require 'config.php';
 $conn = getConnection('admin');
-$sql = "SELECT * FROM Instruments";
-$result = $conn->query($sql);
 
+// Query con estado dinámico y último PDF certificado
+$sql = "
+    SELECT 
+        i.ID,
+        i.Picture,
+        i.Description,
+        i.Brand,
+        i.Model,
+        i.SerialNumber,
+        i.CalDate,
+        i.DueDate,
+        /* Último PdfPath no nulo */
+        (
+            SELECT uh.PdfPath
+            FROM updatehistory uh
+            WHERE uh.InstrumentID = i.ID
+              AND uh.PdfPath IS NOT NULL
+            ORDER BY uh.UpdatedAt DESC
+            LIMIT 1
+        ) AS LastPdfPath,
+        i.Comments,
+        CASE
+            WHEN CURRENT_DATE() > i.DueDate THEN 'Vencido'
+            WHEN i.DueDate BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) THEN 'Próxima calibración'
+            ELSE 'Calibrado'
+        END AS status_calculado
+    FROM instruments i
+    ORDER BY i.ID
+";
+$result = $conn->query($sql);
 if (!$result) {
     die("Error en la consulta: " . $conn->error);
 }
@@ -17,6 +52,7 @@ if (!$result) {
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>Administrar Instrumentos</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
@@ -24,238 +60,174 @@ if (!$result) {
         body {
             background-color: #121212;
             color: #e0e0e0;
+            font-family: Arial, sans-serif;
+            margin: 0; padding: 0;
         }
-
-        .navbar, .card, .modal-content {
-            background-color: #1e1e1e;
-            color: #e0e0e0;
-        }
-
-        .table thead.thead-dark th {
-            background-color: #333333;
-            border-color: #444444;
-            color: #ffffff;
-        }
-
-        .table-striped tbody tr:nth-of-type(odd) {
-            background-color: #2c2c2c;
-        }
-
-        .table-striped tbody tr:nth-of-type(even) {
-            background-color: #1e1e1e;
-        }
-
-        .table th, .table td {
-            border-color: #444444;
-            color: #e0e0e0;
-        }
-
-        .btn, .btn-primary, .btn-info, .btn-warning, .btn-success {
-            color: #ffffff;
-        }
-
-        .btn-primary {
-            background-color: #007bff;
-            border-color: #007bff;
-        }
-
-        .btn-primary:hover {
-            background-color: #0056b3;
-            border-color: #004085;
-        }
-
-        .btn-info {
-            background-color: #17a2b8;
-            border-color: #17a2b8;
-        }
-
-        .btn-info:hover {
-            background-color: #138496;
-            border-color: #117a8b;
-        }
-
-        .btn-warning {
-            background-color: #ffc107;
-            border-color: #ffc107;
-            color: #000;
-        }
-
-        .btn-warning:hover {
-            background-color: #e0a800;
-            border-color: #d39e00;
-        }
-
-        .btn-success {
-            background-color: #28a745;
-            border-color: #28a745;
-        }
-
-        .btn-success:hover {
-            background-color: #218838;
-            border-color: #1e7e34;
-        }
-
-        .report-form select, .report-form input {
-            margin-right: 10px;
-            background-color: #2c2c2c;
-            color: #e0e0e0;
-            border: 1px solid #444444;
-        }
-
-        .form-control {
-            background-color: #2c2c2c;
-            color: #e0e0e0;
-            border: 1px solid #444444;
-        }
-        
-        .form-control::placeholder {
-            color: #e0e0e0;
-        }
-        
         .container {
-            margin-top: 20px;
+            margin: 20px auto;
+            max-width: 1200px;
+            padding: 20px;
         }
+        h1 {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            color: #fff;
+        }
+        .table {
+            color: #e0e0e0;
+        }
+        .thead-dark th {
+            background: #333;
+            color: #fff;
+            border-bottom: 2px solid #444;
+        }
+        .table-striped tbody tr:nth-of-type(odd)  { background: #2c2c2c; }
+        .table-striped tbody tr:nth-of-type(even) { background: #1e1e1e; }
+        .table th, .table td {
+            padding: .75rem;
+            border: 1px solid #444;
+        }
+        .btn { font-weight: 600; text-transform: uppercase; }
+        .btn-success { background: #28a745; color: #fff; }
+        .btn-info    { background: #17a2b8; color: #fff; }
+        .btn-warning { background: #ffc107; color: #000; }
+        .btn-primary { background: #007bff; color: #fff; }
+        .form-control {
+            background: #2c2c2c; color: #e0e0e0;
+            border: 1px solid #444;
+        }
+        @media(max-width:768px){
+            .form-inline { flex-direction: column; }
+            .form-inline .form-control, .form-inline .btn { width: 100%; margin-bottom: .5rem; }
+        }
+
+        /* Resaltado por estado */
+        .vencido td     { background-color: #441111 !important; }
+        .proxima td     { background-color: #443a11 !important; }
+        /* calibrado permanece con estilo por defecto */
     </style>
 </head>
 <body>
     <?php include 'menu.php'; ?>
     <div class="container">
-        <h1 class="my-4">Instrumentos de Medición</h1>
-        <div class="d-flex justify-content-between mb-3">
-            <a class="btn btn-success" href="add.php"><i class="fas fa-plus"></i> Agregar Nuevo Instrumento</a>
-            <form class="form-inline report-form" action="generate_report.php" method="get">
+        <h1>Instrumentos de Medición</h1>
+        <div class="d-flex justify-content-between flex-wrap mb-3">
+            <a class="btn btn-success mb-2" href="add.php">
+                <i class="fas fa-plus"></i> Nuevo Instrumento
+            </a>
+            <form class="form-inline mb-2" action="generate_report.php" method="get">
                 <label for="month" class="mr-2">Mes:</label>
-                <select class="form-control mr-2" name="month" id="month" required>
-                    <?php
-                    for ($m = 1; $m <= 12; $m++) {
-                        $monthName = date('F', mktime(0, 0, 0, $m, 1));
-                        echo "<option value='$m'>$monthName</option>";
-                    }
-                    ?>
+                <select name="month" id="month" class="form-control mr-2" required>
+                    <?php for($m=1;$m<=12;$m++): ?>
+                        <option value="<?= $m ?>"><?= date('F', mktime(0,0,0,$m,1)) ?></option>
+                    <?php endfor; ?>
                 </select>
-
                 <label for="year" class="mr-2">Año:</label>
-                <select class="form-control mr-2" name="year" id="year" required>
-                    <?php
-                    $currentYear = date('Y');
-                    for ($y = $currentYear; $y >= $currentYear - 10; $y--) {
-                        echo "<option value='$y'>$y</option>";
-                    }
-                    ?>
+                <select name="year" id="year" class="form-control mr-2" required>
+                    <?php for($y=date('Y'); $y>=date('Y')-10; $y--): ?>
+                        <option value="<?= $y ?>"><?= $y ?></option>
+                    <?php endfor; ?>
                 </select>
-
-                <button type="submit" class="btn btn-info"><i class="fas fa-file-download"></i> Generar Reporte</button>
+                <button class="btn btn-info" type="submit">
+                    <i class="fas fa-file-download"></i> Reporte
+                </button>
             </form>
-            <input class="form-control w-25" type="text" id="searchInput" onkeyup="filterTable()" placeholder="Buscar por cualquier campo">
+            <input id="searchInput" class="form-control w-25 mb-2" type="text" placeholder="Buscar…" onkeyup="filterTable()">
         </div>
 
-        <table class="table table-striped" id="instrumentsTable">
+        <table class="table table-striped" id="instrumentsTable" data-sort-dir="asc">
             <thead class="thead-dark">
                 <tr>
-                    <th>ID</th>
-                    <th>Picture</th>
-                    <th>Descripción</th>
-                    <th>Marca</th>
-                    <th>Modelo</th>
-                    <th>Número de Serie</th>
-                    <th>Fecha de Calibración</th>
-                    <th>Fecha de Vencimiento</th>
-                    <th>Estado</th>
-                    <th>Comentarios</th>
+                    <th onclick="sortTable(0)">ID</th>
+                    <th>Foto</th>
+                    <th onclick="sortTable(2)">Descripción</th>
+                    <th onclick="sortTable(3)">Marca</th>
+                    <th onclick="sortTable(4)">Modelo</th>
+                    <th onclick="sortTable(5)">Serial</th>
+                    <th onclick="sortTable(6)">Cal Date</th>
+                    <th onclick="sortTable(7)">Due Date</th>
+                    <th onclick="sortTable(8)">Estado</th>
+                    <th>Último PDF</th>
                     <th>Acciones</th>
                 </tr>
             </thead>
             <tbody>
-            <?php while($row = $result->fetch_assoc()) { ?>
-                <tr>
-                    <td><?php echo htmlspecialchars($row['ID']); ?></td>
-                    <td><a href="<?php echo htmlspecialchars($row['Picture']); ?>" target="_blank">Ver Foto</a></td>
-                    <td><?php echo htmlspecialchars($row['Description']); ?></td>
-                    <td><?php echo htmlspecialchars($row['Brand']); ?></td>
-                    <td><?php echo htmlspecialchars($row['Model']); ?></td>
-                    <td><?php echo htmlspecialchars($row['SerialNumber']); ?></td>
-                    <td><?php echo htmlspecialchars($row['CalDate']); ?></td>
-                    <td><?php echo htmlspecialchars($row['DueDate']); ?></td>
-                    <td><?php echo htmlspecialchars($row['Status']); ?></td>
-                    <td><?php echo htmlspecialchars($row['Comments']); ?></td>
-                    <td class="actions">
+            <?php while($row = $result->fetch_assoc()): 
+                // Sólo aplicar clase para 'Vencido' o 'Próxima calibración'
+                $cls = '';
+                if ($row['status_calculado'] === 'Vencido') {
+                    $cls = 'vencido';
+                } elseif ($row['status_calculado'] === 'Próxima calibración') {
+                    $cls = 'proxima';
+                }
+            ?>
+                <tr class="<?= $cls ?>">
+                    <td><?= htmlspecialchars($row['ID']) ?></td>
+                    <td>
+                        <?= $row['Picture']
+                            ? "<a href=\"".htmlspecialchars($row['Picture'])."\" target=\"_blank\">Ver</a>"
+                            : '—' ?>
+                    </td>
+                    <td><?= htmlspecialchars($row['Description']) ?></td>
+                    <td><?= htmlspecialchars($row['Brand']) ?></td>
+                    <td><?= htmlspecialchars($row['Model']) ?></td>
+                    <td><?= htmlspecialchars($row['SerialNumber']) ?></td>
+                    <td><?= htmlspecialchars($row['CalDate']) ?></td>
+                    <td><?= htmlspecialchars($row['DueDate']) ?></td>
+                    <td><?= htmlspecialchars($row['status_calculado']) ?></td>
+                    <td>
+                        <?= $row['LastPdfPath']
+                            ? "<a href=\"".htmlspecialchars($row['LastPdfPath'])."\" target=\"_blank\">
+                                 <i class=\"fas fa-file-pdf\"></i>
+                               </a>"
+                            : '—' ?>
+                    </td>
+                    <td>
                         <div class="btn-group" role="group">
-                            <a class="btn btn-primary btn-sm" href="update.php?id=<?php echo $row['ID']; ?>"><i class="fas fa-edit"></i> Actualizar</a>
-                            <a class="btn btn-info btn-sm" href="history.php?id=<?php echo $row['ID']; ?>"><i class="fas fa-history"></i> Ver Historial</a>
-                            <a class="btn btn-warning btn-sm" href="move_out_of_use.php?id=<?php echo $row['ID']; ?>" title="Mover a Fuera de Uso"><i class="fas fa-exclamation-triangle"></i> Mover</a>
+                            <a class="btn btn-primary btn-sm" href="update.php?id=<?= urlencode($row['ID']) ?>">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <a class="btn btn-info btn-sm" href="history.php?id=<?= urlencode($row['ID']) ?>">
+                                <i class="fas fa-history"></i>
+                            </a>
+                            <a class="btn btn-warning btn-sm" href="move_out_of_use.php?id=<?= urlencode($row['ID']) ?>">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </a>
                         </div>
                     </td>
-                    </td>
                 </tr>
-            <?php } ?>
+            <?php endwhile; ?>
             </tbody>
         </table>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        function filterTable() {
-            var input, filter, table, tr, td, i, j, txtValue;
-            input = document.getElementById("searchInput");
-            filter = input.value.toUpperCase();
-            table = document.getElementById("instrumentsTable");
-            tr = table.getElementsByTagName("tr");
+    function filterTable() {
+        const q = document.getElementById("searchInput").value.toUpperCase();
+        document.querySelectorAll("#instrumentsTable tbody tr").forEach(tr => {
+            tr.style.display = [...tr.cells].some(td =>
+                td.textContent.toUpperCase().includes(q)
+            ) ? "" : "none";
+        });
+    }
 
-            for (i = 1; i < tr.length; i++) {
-                tr[i].style.display = "none";
-                td = tr[i].getElementsByTagName("td");
-                for (j = 0; j < td.length; j++) {
-                    if (td[j]) {
-                        txtValue = td[j].textContent || td[j].innerText;
-                        if (txtValue.toUpperCase().indexOf(filter) > -1) {
-                            tr[i].style.display = "";
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+    function sortTable(col) {
+        const table = document.getElementById("instrumentsTable"),
+              body  = table.tBodies[0],
+              rows  = Array.from(body.rows),
+              asc   = table.getAttribute("data-sort-dir") !== "asc";
 
-        function sortTable(columnIndex) {
-            var table, rows, switching, i, x, y, shouldSwitch, dir, switchCount = 0;
-            table = document.getElementById("instrumentsTable");
-            switching = true;
-            dir = "asc"; 
-            
-            while (switching) {
-                switching = false;
-                rows = table.rows;
-                
-                for (i = 1; i < (rows.length - 1); i++) {
-                    shouldSwitch = false;
-                    x = rows[i].getElementsByTagName("TD")[columnIndex];
-                    y = rows[i + 1].getElementsByTagName("TD")[columnIndex];
-                    
-                    if (dir == "asc") {
-                        if (x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) {
-                            shouldSwitch = true;
-                            break;
-                        }
-                    } else if (dir == "desc") {
-                        if (x.innerHTML.toLowerCase() < y.innerHTML.toLowerCase()) {
-                            shouldSwitch = true;
-                            break;
-                        }
-                    }
-                }
-                if (shouldSwitch) {
-                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
-                    switching = true;
-                    switchCount++;
-                } else {
-                    if (switchCount == 0 && dir == "asc") {
-                        dir = "desc";
-                        switching = true;
-                    }
-                }
-            }
-        }
+        rows.sort((a,b) => {
+            const v1 = a.cells[col].textContent.trim(),
+                  v2 = b.cells[col].textContent.trim();
+            return asc
+                ? v1.localeCompare(v2, undefined, {numeric:true})
+                : v2.localeCompare(v1, undefined, {numeric:true});
+        });
+
+        rows.forEach(r => body.appendChild(r));
+        table.setAttribute("data-sort-dir", asc ? "asc" : "desc");
+    }
     </script>
 </body>
 </html>
