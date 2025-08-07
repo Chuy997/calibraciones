@@ -118,7 +118,7 @@ foreach ($pending_labels as $mes) {
 <body>
     <?php include 'menu2.php'; ?>
     <div class="container">
-        <h1 class="mb-4">Dashboard de Reportes</h1>
+        <h1 class="mb-4">Reporte de Calibraciones</h1>
         <p class="text-muted">
             <strong>Instrumentos por Estado:</strong> distribución actual.<br>
             <strong>Calibraciones Pendientes:</strong> próximos 12 meses.

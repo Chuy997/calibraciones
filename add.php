@@ -18,8 +18,8 @@ $conn = getConnection('admin');
 // Función para manejar subida de archivos
 function handleUpload(string $field, string $uploadDir): ?string {
     if (isset($_FILES[$field]) && $_FILES[$field]['error'] === UPLOAD_ERR_OK) {
-        $ext    = pathinfo($_FILES[$field]['name'], PATHINFO_EXTENSION);
-        $name   = uniqid($field . '_') . '.' . $ext;
+        $ext  = pathinfo($_FILES[$field]['name'], PATHINFO_EXTENSION);
+        $name = uniqid($field . '_') . '.' . $ext;
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0777, true);
         }
@@ -34,37 +34,41 @@ function handleUpload(string $field, string $uploadDir): ?string {
 
 $errors = [];
 $values = [
-    'id'           => '',
-    'description'  => '',
-    'brand'        => '',
-    'model'        => '',
-    'serialNumber' => '',
-    'calDate'      => '',
-    'dueDate'      => '',
-    'status'       => '',
-    'comments'     => '',
+    'id'            => '',
+    'description'   => '',
+    'brand'         => '',
+    'model'         => '',
+    'serialNumber'  => '',
+    'certificateNo' => '',
+    'calDate'       => '',
+    'dueDate'       => '',
+    'status'        => '',
+    'comments'      => '',
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Recoger + sanitizar
+    // 1) Recoger + sanitizar
     foreach ($values as $field => &$val) {
         $val = trim($_POST[$field] ?? '');
     }
     unset($val);
 
-    // Validaciones básicas
+    // 2) Validaciones
     if ($values['id'] === '' || !preg_match('/^[A-Za-z0-9_-]+$/', $values['id'])) {
-        $errors[] = 'ID inválido (solo letras, números, guiones y guiones bajos).';
+        $errors[] = 'ID inválido.';
+    }
+    if ($values['certificateNo'] === '') {
+        $errors[] = 'Debe ingresar el número de certificado.';
     }
     if ($values['calDate'] > $values['dueDate']) {
-        $errors[] = 'La fecha de calibración debe ser previa a la fecha de vencimiento.';
+        $errors[] = 'La fecha de calibración debe ser anterior a la de vencimiento.';
     }
-    // Verificar duplicado de ID
+    // duplicado de ID
     $dup = $conn->prepare("SELECT 1 FROM instruments WHERE ID = ?");
     $dup->bind_param("s", $values['id']);
     $dup->execute();
     $dup->store_result();
-    if ($dup->num_rows > 0) {
+    if ($dup->num_rows) {
         $errors[] = 'Ya existe un instrumento con ese ID.';
     }
     $dup->close();
@@ -73,23 +77,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $conn->begin_transaction();
 
-            // Subidas
+            // 3) Subidas
             $pdfPath     = handleUpload('pdf', 'uploads/')     ?? '';
             $picturePath = handleUpload('picture', 'uploads/') ?? '';
 
-            // Insertar instrumento
+            // 4) Insert en instruments (ahora con CertificateNo)
             $ins = $conn->prepare("
                 INSERT INTO instruments
-                  (ID, Description, Brand, Model, SerialNumber, CalDate, DueDate, Status, Comments, PdfPath, Picture)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                  (ID, Description, Brand, Model, SerialNumber, CertificateNo,
+                   CalDate, DueDate, Status, Comments, PdfPath, Picture)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
             ");
             $ins->bind_param(
-                "sssssssssss",
+                "ssssssssssss",
                 $values['id'],
                 $values['description'],
                 $values['brand'],
                 $values['model'],
                 $values['serialNumber'],
+                $values['certificateNo'],
                 $values['calDate'],
                 $values['dueDate'],
                 $values['status'],
@@ -100,20 +106,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ins->execute();
             $ins->close();
 
-            // Insertar primera entrada en updatehistory
+            // 5) Primer registro en updatehistory
             $hst = $conn->prepare("
                 INSERT INTO updatehistory
                   (InstrumentID, Description, Brand, Model, SerialNumber,
-                   CalDate, DueDate, Status, Comments, UpdatedAt, PdfPath, Picture)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
+                   CertificateNo, CalDate, DueDate, Status, Comments,
+                   UpdatedAt, PdfPath, Picture)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
             ");
             $hst->bind_param(
-                "issssssssss",
+                "isssssssssss",
                 $values['id'],
                 $values['description'],
                 $values['brand'],
                 $values['model'],
                 $values['serialNumber'],
+                $values['certificateNo'],
                 $values['calDate'],
                 $values['dueDate'],
                 $values['status'],
@@ -130,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         } catch (Exception $e) {
             $conn->rollback();
-            $errors[] = "Error al guardar: " . $e->getMessage();
+            $errors[] = 'Error al guardar: ' . $e->getMessage();
         }
     }
 }
@@ -157,9 +165,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php if ($errors): ?>
             <div class="alert alert-danger">
                 <ul>
-                <?php foreach ($errors as $err): ?>
-                    <li><?= htmlspecialchars($err) ?></li>
-                <?php endforeach; ?>
+                    <?php foreach ($errors as $err): ?>
+                        <li><?= htmlspecialchars($err) ?></li>
+                    <?php endforeach; ?>
                 </ul>
             </div>
         <?php endif; ?>
@@ -171,31 +179,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'brand'=>'Marca',
                 'model'=>'Modelo',
                 'serialNumber'=>'Número de Serie',
+                'certificateNo'=>'Número de Certificado'
             ] as $field=>$label): ?>
-            <div class="form-group">
-                <label for="<?= $field ?>"><?= $label ?></label>
-                <input type="text" 
-                       class="form-control" 
-                       id="<?= $field ?>" 
-                       name="<?= $field ?>"
-                       value="<?= htmlspecialchars($values[$field]) ?>"
-                       required>
-            </div>
+                <div class="form-group">
+                    <label for="<?= $field ?>"><?= $label ?></label>
+                    <input type="text"
+                           class="form-control"
+                           id="<?= $field ?>"
+                           name="<?= $field ?>"
+                           value="<?= htmlspecialchars($values[$field]) ?>"
+                           required>
+                </div>
             <?php endforeach; ?>
 
             <?php foreach ([
                 'calDate'=>'Fecha de Calibración',
                 'dueDate'=>'Fecha de Vencimiento'
             ] as $field=>$label): ?>
-            <div class="form-group">
-                <label for="<?= $field ?>"><?= $label ?></label>
-                <input type="date"
-                       class="form-control"
-                       id="<?= $field ?>"
-                       name="<?= $field ?>"
-                       value="<?= htmlspecialchars($values[$field]) ?>"
-                       required>
-            </div>
+                <div class="form-group">
+                    <label for="<?= $field ?>"><?= $label ?></label>
+                    <input type="date"
+                           class="form-control"
+                           id="<?= $field ?>"
+                           name="<?= $field ?>"
+                           value="<?= htmlspecialchars($values[$field]) ?>"
+                           required>
+                </div>
             <?php endforeach; ?>
 
             <div class="form-group">
@@ -203,7 +212,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <select id="status" name="status" class="form-control" required>
                     <?php foreach (['Calibrado','Próxima calibración','Vencido'] as $opt): ?>
                         <option value="<?= $opt ?>"
-                          <?= $values['status']===$opt ? 'selected' : '' ?>>
+                          <?= $values['status'] === $opt ? 'selected' : '' ?>>
                           <?= $opt ?>
                         </option>
                     <?php endforeach; ?>
@@ -212,7 +221,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div class="form-group">
                 <label for="comments">Comentarios</label>
-                <textarea id="comments" 
+                <textarea id="comments"
                           name="comments"
                           class="form-control"
                           rows="3"
