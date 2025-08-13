@@ -5,7 +5,6 @@ declare(strict_types=1);
 require_once __DIR__ . '/config.php';
 require_auth('admin'); // solo admins
 
-// Helper de escape
 function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
 // --- Config de subida ---
@@ -14,12 +13,10 @@ const MAX_PDF_BYTES = 20 * 1024 * 1024;    // 20MB
 $ALLOWED_IMG_EXT = ['jpg','jpeg','png','webp'];
 $ALLOWED_PDF_EXT = ['pdf'];
 
-// Estados permitidos según tu ENUM en BD
-$STATUS_ALLOWED = [
-  'calibrado' => 'Calibrado',
-  'en proceso de calibracion' => 'En proceso de calibración',
-  'fuera de calibracion' => 'Fuera de calibración',
-];
+/** Estado en BD (enum) */
+const STATE_CALIBRADO        = 'calibrado';
+const STATE_FUERA            = 'fuera de calibracion';
+const STATE_EN_PROCESO       = 'en proceso de calibracion';
 
 // 1) Obtener y validar ID
 $id = $_GET['id'] ?? $_POST['id'] ?? null;
@@ -43,28 +40,43 @@ try {
     exit('Error al cargar el instrumento.');
 }
 
-// Rutas actuales y CertificateNo (asegurar no nulo)
+// Datos actuales (solo lectura en el formulario)
+$description  = (string)($instrument['Description']  ?? '');
+$brand        = (string)($instrument['Brand']        ?? '');
+$model        = (string)($instrument['Model']        ?? '');
+$serialNumber = (string)($instrument['SerialNumber'] ?? '');
+
+// Rutas actuales y CertificateNo
 $pdfPath       = (string)($instrument['PdfPath'] ?? '');
 $picturePath   = (string)($instrument['Picture'] ?? '');
 $certificateNo = (string)($instrument['CertificateNo'] ?? '');
 
-// Valores “del formulario” (para re-llenar si hay errores)
+// Valores que SÍ se pueden cambiar
 $values = [
-  'description'  => (string)($instrument['Description'] ?? ''),
-  'brand'        => (string)($instrument['Brand'] ?? ''),
-  'model'        => (string)($instrument['Model'] ?? ''),
-  'serialNumber' => (string)($instrument['SerialNumber'] ?? ''),
-  'calDate'      => (string)($instrument['CalDate'] ?? ''),
-  'dueDate'      => (string)($instrument['DueDate'] ?? ''),
-  'status'       => (string)($instrument['Status'] ?? 'calibrado'),
-  'comments'     => (string)($instrument['Comments'] ?? ''),
+  'calDate'  => (string)($instrument['CalDate'] ?? ''),
+  'dueDate'  => (string)($instrument['DueDate'] ?? ''), // será recalculado por servidor
+  'comments' => (string)($instrument['Comments'] ?? ''),
 ];
 
 $errors = [];
 
+/** Sumar 1 año con DateTime (robusto a fin de mes) */
+function plusOneYear(string $ymd): string {
+    $dt = DateTime::createFromFormat('Y-m-d', $ymd);
+    if (!$dt) { throw new RuntimeException('Fecha inválida (calDate).'); }
+    $dt->modify('+1 year');
+    return $dt->format('Y-m-d');
+}
+
+/** Estado automático a partir de dueDate */
+function autoState(string $dueYmd): string {
+    $today = (new DateTime('today'))->format('Y-m-d');
+    return ($dueYmd < $today) ? STATE_FUERA : STATE_CALIBRADO;
+}
+
 /**
- * Maneja una subida validando tamaño/mime/ext. Guarda en $destDir (ABSOLUTO).
- * Devuelve una RUTA RELATIVA web (p.ej. calibraciones/uploads/ID/archivo.ext) o null si no hay archivo.
+ * Manejar subida validando tamaño/mime/ext. Guarda en $destDir ABSOLUTO.
+ * Retorna ruta relativa web (p.ej. calibraciones/uploads/ID/archivo.ext) o null si no hay archivo.
  * $kind = 'pdf' | 'img'
  */
 function handleUpload(string $field, string $destDir, string $kind): ?string {
@@ -106,10 +118,9 @@ function handleUpload(string $field, string $destDir, string $kind): ?string {
     }
 
     // Retornar ruta relativa web
-    $docroot = rtrim($_SERVER['DOCUMENT_ROOT'], '/').'/';
+    $docroot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/').'/';
     $rel     = ltrim(str_replace($docroot, '', $destAbs), '/');
-    if (!str_starts_with($rel, 'calibraciones/')) {
-        // según tu estructura, servimos desde /calibraciones
+    if ($docroot && !str_starts_with($rel, 'calibraciones/')) {
         $rel = 'calibraciones/' . ltrim($rel, '/');
     }
     return $rel;
@@ -122,19 +133,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Sesión expirada. Por favor, vuelve a intentar.';
     }
 
-    // Recoger valores
-    foreach ($values as $k => $_) {
-        $values[$k] = trim($_POST[$k] ?? '');
-    }
+    // Recoger SOLO campos permitidos
+    $values['calDate']  = trim($_POST['calDate']  ?? '');
+    $values['comments'] = trim($_POST['comments'] ?? '');
 
     // Validaciones
-    if ($values['calDate'] === '' || $values['dueDate'] === '') {
-        $errors[] = 'Debes ingresar las fechas de calibración y vencimiento.';
-    } elseif ($values['calDate'] > $values['dueDate']) {
-        $errors[] = 'La fecha de calibración debe ser anterior a la de vencimiento.';
-    }
-    if (!array_key_exists($values['status'], $STATUS_ALLOWED)) {
-        $errors[] = 'Estado inválido.';
+    if ($values['calDate'] === '') {
+        $errors[] = 'Debes ingresar la fecha de calibración.';
+    } else {
+        // Recalcular dueDate en servidor
+        try {
+            $values['dueDate'] = plusOneYear($values['calDate']);
+        } catch (Throwable $e) {
+            $errors[] = 'Fecha de calibración inválida.';
+        }
     }
 
     if (!$errors) {
@@ -149,29 +161,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $newPdfRel     = handleUpload('pdf',     $destDirAbs, 'pdf'); // null si no hay nuevo
             $newPictureRel = handleUpload('picture', $destDirAbs, 'img'); // null si no hay nuevo
 
-            if ($newPdfRel !== null)   $pdfPath     = $newPdfRel;
-            if ($newPictureRel !== null) $picturePath = $newPictureRel;
+            if ($newPdfRel !== null)       { $pdfPath     = $newPdfRel; }
+            if ($newPictureRel !== null)   { $picturePath = $newPictureRel; }
 
-            // Actualizar instrumentos
+            // Estado automático
+            $statusAuto = autoState($values['dueDate']); // 'calibrado' o 'fuera de calibracion'
+
+            // Actualizar SOLO campos permitidos
             $upd = $pdo->prepare("
                 UPDATE instruments
-                SET Description=:Description, Brand=:Brand, Model=:Model, SerialNumber=:SerialNumber,
-                    CalDate=:CalDate, DueDate=:DueDate, Status=:Status, Comments=:Comments,
-                    PdfPath=:PdfPath, Picture=:Picture
-                WHERE ID=:ID
+                   SET CalDate=:CalDate,
+                       DueDate=:DueDate,
+                       Status =:Status,
+                       Comments=:Comments,
+                       PdfPath =:PdfPath,
+                       Picture=:Picture
+                 WHERE ID = :ID
             ");
             $upd->execute([
-                ':Description'  => $values['description'],
-                ':Brand'        => $values['brand'],
-                ':Model'        => $values['model'],
-                ':SerialNumber' => $values['serialNumber'],
-                ':CalDate'      => $values['calDate'],
-                ':DueDate'      => $values['dueDate'],
-                ':Status'       => $values['status'],
-                ':Comments'     => $values['comments'],
-                ':PdfPath'      => $pdfPath ?: null,
-                ':Picture'      => $picturePath ?: null,
-                ':ID'           => $id,
+                ':CalDate'  => $values['calDate'],
+                ':DueDate'  => $values['dueDate'],
+                ':Status'   => $statusAuto,
+                ':Comments' => $values['comments'],
+                ':PdfPath'  => $pdfPath   ?: null,
+                ':Picture'  => $picturePath ?: null,
+                ':ID'       => $id,
             ]);
 
             // Insertar snapshot en updatehistory
@@ -187,17 +201,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ");
             $hst->execute([
                 ':InstrumentID' => $id,
-                ':UpdatedColumn'=> 'update',
+                ':UpdatedColumn'=> 'calibration_update',
                 ':OldValue'     => null,
                 ':NewValue'     => null,
-                ':Description'  => $values['description'],
-                ':Brand'        => $values['brand'],
-                ':Model'        => $values['model'],
-                ':SerialNumber' => $values['serialNumber'],
+                ':Description'  => $description,
+                ':Brand'        => $brand,
+                ':Model'        => $model,
+                ':SerialNumber' => $serialNumber,
                 ':CalDate'      => $values['calDate'],
                 ':DueDate'      => $values['dueDate'],
                 ':CertificateNo'=> $certificateNo,
-                ':Status'       => $values['status'],
+                ':Status'       => $statusAuto,
                 ':Comments'     => $values['comments'],
                 ':PdfPath'      => $pdfPath ?: null,
                 ':Picture'      => $picturePath ?: null,
@@ -229,70 +243,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
     <?php endif; ?>
 
-    <form method="POST" action="update.php?id=<?= h($id) ?>" enctype="multipart/form-data" class="needs-validation" novalidate>
+    <form method="POST" action="update.php?id=<?=
+      h($id) ?>" enctype="multipart/form-data" class="needs-validation" novalidate>
       <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
       <input type="hidden" name="id" value="<?= h($id) ?>">
 
       <div class="row g-3">
+        <!-- Identidad del instrumento (solo lectura) -->
         <div class="col-12">
           <label class="form-label">ID</label>
           <input type="text" class="form-control" value="<?= h($id) ?>" disabled>
-          <div class="form-text">El ID no se puede cambiar.</div>
         </div>
 
         <div class="col-12">
-          <label for="description" class="form-label">Descripción</label>
-          <input type="text" class="form-control" id="description" name="description" value="<?= h($values['description']) ?>" required>
+          <label class="form-label">Descripción</label>
+          <input type="text" class="form-control" value="<?= h($description) ?>" disabled>
         </div>
 
         <div class="col-sm-4">
-          <label for="brand" class="form-label">Marca</label>
-          <input type="text" class="form-control" id="brand" name="brand" value="<?= h($values['brand']) ?>">
+          <label class="form-label">Marca</label>
+          <input type="text" class="form-control" value="<?= h($brand) ?>" disabled>
         </div>
         <div class="col-sm-4">
-          <label for="model" class="form-label">Modelo</label>
-          <input type="text" class="form-control" id="model" name="model" value="<?= h($values['model']) ?>">
+          <label class="form-label">Modelo</label>
+          <input type="text" class="form-control" value="<?= h($model) ?>" disabled>
         </div>
         <div class="col-sm-4">
-          <label for="serialNumber" class="form-label">Número de Serie</label>
-          <input type="text" class="form-control" id="serialNumber" name="serialNumber" value="<?= h($values['serialNumber']) ?>">
+          <label class="form-label">Número de Serie</label>
+          <input type="text" class="form-control" value="<?= h($serialNumber) ?>" disabled>
         </div>
 
+        <!-- Calibración (editable) -->
         <div class="col-sm-6">
           <label for="calDate" class="form-label">Fecha de Calibración</label>
-          <input type="date" class="form-control" id="calDate" name="calDate" value="<?= h($values['calDate']) ?>" required>
-        </div>
-        <div class="col-sm-6">
-          <label for="dueDate" class="form-label">Fecha de Vencimiento</label>
-          <input type="date" class="form-control" id="dueDate" name="dueDate" value="<?= h($values['dueDate']) ?>" required>
+          <input type="date" class="form-control" id="calDate" name="calDate"
+                 value="<?= h($values['calDate']) ?>" required>
+          <div class="form-text">Al cambiar esta fecha, el vencimiento se fijará automáticamente a +1 año.</div>
         </div>
 
         <div class="col-sm-6">
-          <label for="status" class="form-label">Estado</label>
-          <select id="status" name="status" class="form-select" required>
-            <?php foreach ($STATUS_ALLOWED as $val => $label): ?>
-              <option value="<?= h($val) ?>" <?= $values['status'] === $val ? 'selected' : '' ?>>
-                <?= h($label) ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
+          <label class="form-label">Fecha de Vencimiento</label>
+          <input type="date" class="form-control" id="dueDatePreview" value="<?= h($values['dueDate']) ?>" disabled>
+          <div class="form-text">Se calcula automáticamente en base a la fecha de calibración.</div>
+        </div>
+
+        <div class="col-sm-6">
+          <label class="form-label">Estado (automático)</label>
+          <?php
+            $statusPreview = autoState($values['dueDate'] ?: ($values['calDate'] ? plusOneYear($values['calDate']) : date('Y-m-d')));
+          ?>
+          <input type="text" class="form-control" id="statusPreview"
+                 value="<?= h($statusPreview) ?>" disabled>
+          <div class="form-text">Se actualizará automáticamente según el vencimiento.</div>
         </div>
 
         <div class="col-12">
           <label for="comments" class="form-label">Comentarios</label>
-          <textarea id="comments" name="comments" class="form-control" rows="3" required><?= h($values['comments']) ?></textarea>
+          <textarea id="comments" name="comments" class="form-control" rows="3"
+                    required><?= h($values['comments']) ?></textarea>
         </div>
 
         <div class="col-md-6">
           <label class="form-label d-flex align-items-center justify-content-between">
             <span>PDF del proveedor</span>
             <?php if ($pdfPath): ?>
-              <a href="<?= h($pdfPath) ?>" target="_blank" class="small text-decoration-none"><i class="fa fa-file-pdf me-1"></i>Ver actual</a>
+              <a href="<?= h($pdfPath) ?>" target="_blank" class="small text-decoration-none">
+                <i class="fa fa-file-pdf me-1"></i>Ver actual
+              </a>
             <?php endif; ?>
           </label>
           <input type="file" id="pdf" name="pdf" accept="application/pdf" class="form-control">
           <div class="mt-2 d-none" id="pdfPreviewBox">
-            <iframe id="pdfPreview" title="PDF" style="width:100%;height:300px;border:1px solid #333;border-radius:8px;"></iframe>
+            <iframe id="pdfPreview" title="PDF"
+                    style="width:100%;height:300px;border:1px solid #333;border-radius:8px;"></iframe>
           </div>
         </div>
 
@@ -300,12 +323,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <label class="form-label d-flex align-items-center justify-content-between">
             <span>Foto del instrumento</span>
             <?php if ($picturePath): ?>
-              <a href="<?= h($picturePath) ?>" target="_blank" class="small text-decoration-none"><i class="fa fa-image me-1"></i>Ver actual</a>
+              <a href="<?= h($picturePath) ?>" target="_blank" class="small text-decoration-none">
+                <i class="fa fa-image me-1"></i>Ver actual
+              </a>
             <?php endif; ?>
           </label>
           <input type="file" id="picture" name="picture" accept="image/*" class="form-control">
           <div class="mt-2 d-none" id="imgPreviewBox">
-            <img id="imgPreview" src="" alt="preview" class="img-fluid rounded" style="max-height:300px;border:1px solid #333;">
+            <img id="imgPreview" src="" alt="preview" class="img-fluid rounded"
+                 style="max-height:300px;border:1px solid #333;">
           </div>
         </div>
       </div>
@@ -321,6 +347,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script>
+// Auto-cálculo de DueDate (+1 año) y estado (preview) al cambiar calDate
+const calInput  = document.getElementById('calDate');
+const duePrev   = document.getElementById('dueDatePreview');
+const statusPrev= document.getElementById('statusPreview');
+
+function toYMD(d){ const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+function addOneYear(ymd){
+  const [y,m,d] = ymd.split('-').map(Number);
+  const dt = new Date(y, m-1, d);
+  dt.setFullYear(dt.getFullYear()+1);
+  // Ajuste por fin de mes (si mes cambió, retrocede al último día del mes anterior)
+  if (dt.getMonth() !== (m-1)) { dt.setDate(0); }
+  return toYMD(dt);
+}
+function autoState(dueYmd){
+  const today = toYMD(new Date());
+  return (dueYmd < today) ? 'fuera de calibracion' : 'calibrado';
+}
+
+if (calInput) {
+  calInput.addEventListener('change', ()=>{
+    const cal = calInput.value;
+    if (!cal) return;
+    const due = addOneYear(cal);
+    duePrev.value = due;
+    statusPrev.value = autoState(due);
+  });
+}
+
 // Vista previa de imagen nueva
 const pictureInput = document.getElementById('picture');
 if (pictureInput) {

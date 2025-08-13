@@ -2,6 +2,12 @@
 // /var/www/html/calibraciones/partials/header.php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 require_once __DIR__ . '/../config.php';
+
+$current = basename($_SERVER['PHP_SELF']);
+function active(string $file): string {
+  global $current;
+  return $current === $file ? 'active' : '';
+}
 ?>
 <!DOCTYPE html>
 <html lang="es" data-bs-theme="dark">
@@ -14,7 +20,7 @@ require_once __DIR__ . '/../config.php';
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
 
-  <!-- App styles -->
+  <!-- App styles (mantiene proporciones de tus tablas) -->
   <link href="assets/app.css?v=1" rel="stylesheet">
 </head>
 <body>
@@ -30,9 +36,37 @@ require_once __DIR__ . '/../config.php';
     <div id="topnav" class="collapse navbar-collapse">
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
         <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
-          <li class="nav-item"><a class="nav-link" href="admin.php"><i class="fa fa-screwdriver-wrench me-1"></i>Administrar</a></li>
-          <li class="nav-item"><a class="nav-link" href="out_of_use.php"><i class="fa fa-box-archive me-1"></i>Fuera de uso</a></li>
-          <li class="nav-item"><a class="nav-link" href="report.php"><i class="fa fa-chart-column me-1"></i>Reportes</a></li>
+          <li class="nav-item">
+            <a class="nav-link <?= active('admin.php') ?>" href="admin.php">
+              <i class="fa fa-screwdriver-wrench me-1"></i>Administrar
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link <?= active('out_of_use.php') ?>" href="out_of_use.php">
+              <i class="fa fa-box-archive me-1"></i>Fuera de uso
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link <?= active('report.php') ?>" href="report.php">
+              <i class="fa fa-chart-column me-1"></i>Reportes
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link <?= active('users_admin.php') ?>" href="users_admin.php">
+              <i class="fa fa-users-gear me-1"></i>Usuarios
+            </a>
+          </li>
+        <?php else: ?>
+          <li class="nav-item">
+            <a class="nav-link <?= active('consulta_dashboard.php') ?>" href="consulta_dashboard.php">
+              <i class="fa fa-magnifying-glass me-1"></i>Consulta
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link <?= active('report_view.php') ?>" href="report_view.php">
+              <i class="fa fa-chart-column me-1"></i>Reportes
+            </a>
+          </li>
         <?php endif; ?>
       </ul>
       <div class="d-flex align-items-center gap-3">
@@ -41,7 +75,9 @@ require_once __DIR__ . '/../config.php';
           <?= htmlspecialchars($_SESSION['username'] ?? 'usuario', ENT_QUOTES, 'UTF-8'); ?>
           — <?= htmlspecialchars($_SESSION['role'] ?? 'consulta', ENT_QUOTES, 'UTF-8'); ?>
         </span>
-        <a href="logout.php" class="btn btn-outline-light btn-sm"><i class="fa fa-right-from-bracket me-1"></i>Salir</a>
+        <a href="logout.php" class="btn btn-outline-light btn-sm">
+          <i class="fa fa-right-from-bracket me-1"></i>Salir
+        </a>
       </div>
     </div>
   </div>
