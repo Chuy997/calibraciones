@@ -5,8 +5,8 @@ if (!isset($_SESSION['username'])) {
     exit();
 }
 
-require 'config.php';
-$conn = getConnection('admin');
+require __DIR__.'/config.php';
+require_auth('admin'); // sesión y rol
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $id = $_POST['ID'];

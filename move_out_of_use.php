@@ -1,100 +1,94 @@
 <?php
-session_start();
-if (!isset($_SESSION['username']) || $_SESSION['role'] != 'admin') {
-    header('Location: login.php');
-    exit();
+// /var/www/html/calibraciones/move_out_of_use.php
+declare(strict_types=1);
+
+require_once __DIR__ . '/config.php';
+require_auth('admin'); // solo admins
+
+function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+
+// Obtener ID por GET (mostrar form) o por POST (procesar)
+$id = $_GET['id'] ?? $_POST['id'] ?? null;
+if (!$id || !preg_match('/^[A-Za-z0-9._-]+$/', $id)) {
+    http_response_code(400);
+    exit('ID inválido.');
 }
 
-require 'config.php';
-$conn = getConnection('admin');
+$errors = [];
+$reason = $_POST['ReasonForRemoval'] ?? '';
 
-// Verificar si el ID se ha proporcionado mediante GET (al cargar el formulario) o POST (al enviar el formulario)
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    if (isset($_POST['id']) && isset($_POST['ReasonForRemoval'])) {
-        $id = $_POST['id'];
-        $reason = $_POST['ReasonForRemoval'];
-
-        // Llamar al procedimiento almacenado
-        $sql = "CALL MoveInstrumentOutOfUse(?, ?)";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("ss", $id, $reason);
-
-        if ($stmt->execute()) {
-            header('Location: admin.php');
-            exit();
-        } else {
-            echo "Error al mover el instrumento fuera de uso: " . $stmt->error;
-        }
-    } else {
-        die("ID o razón no proporcionados.");
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // CSRF
+    if (!isset($_POST['csrf']) || !csrf_validate($_POST['csrf'])) {
+        $errors[] = 'Sesión expirada. Intenta de nuevo.';
     }
-} elseif (isset($_GET['id'])) {
-    $id = $_GET['id'];
-} else {
-    die("ID no proporcionado.");
+    // Validar razón
+    $allowedReasons = ['Obsoleto', 'Fuera de Calibración', 'No Funciona'];
+    if (!in_array($reason, $allowedReasons, true)) {
+        $errors[] = 'Razón inválida.';
+    }
+
+    if (!$errors) {
+        try {
+            $pdo = pdo();
+            // Llamada al procedimiento almacenado
+            $stmt = $pdo->prepare("CALL MoveInstrumentOutOfUse(:id, :reason)");
+            $stmt->execute([':id' => $id, ':reason' => $reason]);
+            // Consumir posibles resultsets extra de CALL
+            while ($stmt->nextRowset()) {}
+            $stmt->closeCursor();
+
+            header('Location: admin.php');
+            exit;
+        } catch (Throwable $e) {
+            $errors[] = 'Error al mover fuera de uso: ' . $e->getMessage();
+        }
+    }
 }
 ?>
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Mover Instrumento Fuera de Uso</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <style>
-        body {
-            background-color: #121212;
-            color: #e0e0e0;
-        }
+<?php include __DIR__ . '/partials/header.php'; ?>
 
-        .navbar, .card, .modal-content {
-            background-color: #1e1e1e;
-            color: #e0e0e0;
-        }
+<div class="row justify-content-center">
+  <div class="col-12 col-md-8 col-lg-6">
+    <h1 class="h4 my-3">Mover instrumento fuera de uso</h1>
 
-        .form-control {
-            background-color: #2c2c2c;
-            color: #e0e0e0;
-            border: 1px solid #444444;
-        }
+    <?php if ($errors): ?>
+      <div class="alert alert-danger">
+        <ul class="m-0 ps-3">
+          <?php foreach ($errors as $err): ?><li><?= h($err) ?></li><?php endforeach; ?>
+        </ul>
+      </div>
+    <?php endif; ?>
 
-        .form-control::placeholder {
-            color: #e0e0e0;
-        }
+    <div class="card p-3">
+      <form method="POST" action="move_out_of_use.php">
+        <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="id" value="<?= h($id) ?>">
 
-        .btn-primary {
-            background-color: #007bff;
-            border-color: #007bff;
-            color: #ffffff;
-        }
+        <div class="mb-3">
+          <label class="form-label">ID</label>
+          <input type="text" class="form-control" value="<?= h($id) ?>" disabled>
+        </div>
 
-        .btn-primary:hover {
-            background-color: #0056b3;
-            border-color: #004085;
-        }
-        
-        .container {
-            margin-top: 20px;
-        }
-    </style>
-</head>
-<body>
-    <?php include 'menu.php'; ?>
-    <div class="container">
-        <h1 class="my-4">Mover Instrumento Fuera de Uso</h1>
-        <form method="POST" action="move_out_of_use.php">
-            <input type="hidden" name="id" value="<?php echo htmlspecialchars($id); ?>">
-            <div class="form-group">
-                <label for="ReasonForRemoval">Razón</label>
-                <select class="form-control" id="ReasonForRemoval" name="ReasonForRemoval" required>
-                    <option value="Obsoleto">Obsoleto</option>
-                    <option value="Fuera de Calibración">Fuera de Calibración</option>
-                    <option value="No Funciona">No Funciona</option>
-                </select>
-            </div>
-            <button type="submit" class="btn btn-primary">Mover Fuera de Uso</button>
-        </form>
+        <div class="mb-3">
+          <label for="ReasonForRemoval" class="form-label">Razón</label>
+          <select class="form-select" id="ReasonForRemoval" name="ReasonForRemoval" required>
+            <?php
+              $opts = ['Obsoleto','Fuera de Calibración','No Funciona'];
+              foreach ($opts as $opt):
+            ?>
+              <option value="<?= h($opt) ?>" <?= ($reason===$opt)?'selected':'' ?>><?= h($opt) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+
+        <div class="d-flex gap-2">
+          <a href="admin.php" class="btn btn-outline-secondary">Cancelar</a>
+          <button type="submit" class="btn btn-primary">Mover fuera de uso</button>
+        </div>
+      </form>
     </div>
-</body>
-</html>
-<?php
-$conn->close();
-?>
+  </div>
+</div>
+
+<?php include __DIR__ . '/partials/footer.php'; ?>

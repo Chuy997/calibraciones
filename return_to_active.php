@@ -1,84 +1,72 @@
 <?php
-session_start();
-if (!isset($_SESSION['username']) || $_SESSION['role'] != 'admin') {
-    header('Location: login.php');
-    exit();
+// /var/www/html/calibraciones/return_to_active.php
+declare(strict_types=1);
+
+require_once __DIR__ . '/config.php';
+require_auth('admin');
+
+function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+
+$id = $_GET['id'] ?? $_POST['id'] ?? null;
+if (!$id || !preg_match('/^[A-Za-z0-9._-]+$/', $id)) {
+    http_response_code(400);
+    exit('ID inválido.');
 }
 
-require 'config.php';
-$conn = getConnection('admin');
+$errors = [];
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['id'])) {
-    $id = $_POST['id'];
-
-    // Llamar al procedimiento almacenado
-    $sql = "CALL ReturnInstrumentToActive(?)";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("s", $id);
-
-    if ($stmt->execute()) {
-        header('Location: out_of_use.php');
-        exit();
-    } else {
-        echo "Error al regresar el instrumento a uso: " . $stmt->error;
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isset($_POST['csrf']) || !csrf_validate($_POST['csrf'])) {
+        $errors[] = 'Sesión expirada. Intenta de nuevo.';
     }
-} else {
-    die("ID no proporcionado.");
+
+    if (!$errors) {
+        try {
+            $pdo = pdo();
+            $stmt = $pdo->prepare("CALL ReturnInstrumentToActive(:id)");
+            $stmt->execute([':id' => $id]);
+            while ($stmt->nextRowset()) {}
+            $stmt->closeCursor();
+
+            header('Location: out_of_use.php');
+            exit;
+        } catch (Throwable $e) {
+            $errors[] = 'Error al regresar a uso: ' . $e->getMessage();
+        }
+    }
 }
 ?>
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Regresar Instrumento a Uso</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <style>
-        body {
-            background-color: #121212;
-            color: #e0e0e0;
-        }
+<?php include __DIR__ . '/partials/header.php'; ?>
 
-        .navbar, .card, .modal-content {
-            background-color: #1e1e1e;
-            color: #e0e0e0;
-        }
+<div class="row justify-content-center">
+  <div class="col-12 col-md-8 col-lg-6">
+    <h1 class="h4 my-3">Regresar instrumento a uso</h1>
 
-        .form-control {
-            background-color: #2c2c2c;
-            color: #e0e0e0;
-            border: 1px solid #444444;
-        }
+    <?php if ($errors): ?>
+      <div class="alert alert-danger">
+        <ul class="m-0 ps-3">
+          <?php foreach ($errors as $err): ?><li><?= h($err) ?></li><?php endforeach; ?>
+        </ul>
+      </div>
+    <?php endif; ?>
 
-        .form-control::placeholder {
-            color: #e0e0e0;
-        }
+    <div class="card p-3">
+      <form method="POST" action="return_to_active.php">
+        <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="id" value="<?= h($id) ?>">
 
-        .btn-primary {
-            background-color: #007bff;
-            border-color: #007bff;
-            color: #ffffff;
-        }
+        <div class="mb-3">
+          <label class="form-label">ID</label>
+          <input type="text" class="form-control" value="<?= h($id) ?>" disabled>
+        </div>
 
-        .btn-primary:hover {
-            background-color: #0056b3;
-            border-color: #004085;
-        }
-        
-        .container {
-            margin-top: 20px;
-        }
-    </style>
-</head>
-<body>
-    <?php include 'menu.php'; ?>
-    <div class="container">
-        <h1 class="my-4">Regresar Instrumento a Uso</h1>
-        <form method="POST" action="return_to_active.php">
-            <input type="hidden" name="id" value="<?php echo htmlspecialchars($_GET['id']); ?>">
-            <button type="submit" class="btn btn-primary">Regresar a Uso</button>
-        </form>
+        <div class="d-flex gap-2">
+          <a href="out_of_use.php" class="btn btn-outline-secondary">Cancelar</a>
+          <button type="submit" class="btn btn-primary">Regresar a uso</button>
+        </div>
+      </form>
     </div>
-</body>
-</html>
-<?php
-$conn->close();
-?>
+  </div>
+</div>
+
+<?php include __DIR__ . '/partials/footer.php'; ?>

@@ -1,4 +1,6 @@
 <?php
+require __DIR__.'/config.php';
+secure_session_start();
 if (!isset($_SESSION)) {
     session_start();
 }

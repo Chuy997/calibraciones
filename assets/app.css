@@ -1,0 +1,65 @@
+/* /var/www/html/calibraciones/assets/app.css */
+:root{
+  --bg: #0f0f10;
+  --card: #151517;
+  --muted: #9aa0a6;
+  --border: #26272b;
+  --accent: #4dabf7;
+}
+html,body{background:var(--bg); color:#e4e6eb;}
+.app-navbar{ background:#121214; }
+.brand-logo{ width:36px; height:36px; object-fit:contain; }
+
+/* Cards */
+.card{ background:var(--card); border:1px solid var(--border); border-radius:14px; }
+
+/* Table styling */
+.table-wrap{
+  border:1px solid var(--border);
+  border-radius:14px;
+  overflow:hidden;
+  background: var(--card);
+}
+.table{
+  margin:0;
+  color:#e4e6eb;
+  vertical-align:middle;
+  --bs-table-striped-bg: rgba(255,255,255,.03);
+  --bs-table-hover-bg: rgba(255,255,255,.04);
+  --bs-table-border-color: var(--border);
+}
+.table thead th{
+  position: sticky; top:0; z-index:2;
+  background:#19191c;
+  border-bottom:1px solid var(--border)!important;
+  color:#cfd1d4; font-weight:600; font-size:.9rem;
+}
+.table tbody td{ border-color:var(--border)!important; }
+.table thead .th-sort{ cursor:pointer; -webkit-user-select:none; user-select:none; }
+.table thead .th-sort .sort-ind{ opacity:.4; margin-left:.25rem; }
+.table thead .th-sort.active .sort-ind{ opacity:1; }
+
+/* Density */
+.table-density-comfort .table td, .table-density-comfort .table th{ padding:.9rem .75rem; }
+.table-density-compact .table td, .table-density-compact .table th{ padding:.45rem .55rem; font-size:.92rem; }
+
+/* Toolbar */
+.dt-toolbar{ display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; margin-bottom:.75rem; }
+.dt-toolbar .form-control, .dt-toolbar .form-select{ background:#1e1f23; border-color:var(--border); color:#e4e6eb; }
+.dt-toolbar .btn{ border-color:var(--border); }
+.colvis-menu{ max-height:280px; overflow:auto; }
+
+/* Badges por estado */
+.badge-state{ font-weight:600; letter-spacing:.2px; }
+.badge-cal{ background:#1e3b27; color:#7ee787; }
+.badge-prox{ background:#3b341e; color:#ffd65c; }
+.badge-ven{ background:#3b1e1e; color:#ff7b7b; }
+
+/* Image thumb */
+.img-thumb{ width:44px; height:44px; object-fit:cover; border-radius:8px; border:1px solid var(--border); }
+
+/* Scroll container para tablas altas */
+.table-scroll{ max-height: 70vh; overflow:auto; }
+
+/* Tooltip fixes for dark: */
+.tooltip-inner{ background:#1f2024; border:1px solid var(--border); }

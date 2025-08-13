@@ -1,156 +1,145 @@
 <?php
-session_start();
-if (!isset($_SESSION['username']) || $_SESSION['role'] != 'admin') {
-    header('Location: login.php');
-    exit();
-}
+// /var/www/html/calibraciones/out_of_use.php
+declare(strict_types=1);
 
-require 'config.php';
-$conn = getConnection('admin');
+require_once __DIR__.'/config.php';
+require_auth('admin');
 
-$sql = "SELECT * FROM instrumentsoutofuse";
-$result = $conn->query($sql);
+function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
-if (!$result) {
-    die("Error en la consulta: " . $conn->error);
-}
+$rows = pdo()->query("
+  SELECT ID, Description, Brand, Model, SerialNumber, CalDate, DueDate, Status, Comments,
+         ReasonForRemoval, DateRemoved, Picture
+  FROM instrumentsoutofuse
+  ORDER BY DateRemoved DESC, ID
+")->fetchAll();
 ?>
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Instrumentos Fuera de Uso</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
-    <style>
-        body {
-            background-color: #121212;
-            color: #e0e0e0;
-        }
+<?php include __DIR__.'/partials/header.php'; ?>
 
-        .navbar, .card, .modal-content {
-            background-color: #1e1e1e;
-            color: #e0e0e0;
-        }
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h1 class="h4 m-0">Instrumentos fuera de uso</h1>
+</div>
 
-        .table thead.thead-dark th {
-            background-color: #333333;
-            border-color: #444444;
-            color: #ffffff;
-        }
-
-        .table-striped tbody tr:nth-of-type(odd) {
-            background-color: #2c2c2c;
-        }
-
-        .table-striped tbody tr:nth-of-type(even) {
-            background-color: #1e1e1e;
-        }
-
-        .table th, .table td {
-            border-color: #444444;
-            color: #e0e0e0;
-        }
-
-        .btn, .btn-primary, .btn-info, .btn-warning, .btn-success {
-            color: #ffffff;
-        }
-
-        .btn-primary {
-            background-color: #007bff;
-            border-color: #007bff;
-        }
-
-        .btn-primary:hover {
-            background-color: #0056b3;
-            border-color: #004085;
-        }
-
-        .btn-info {
-            background-color: #17a2b8;
-            border-color: #17a2b8;
-        }
-
-        .btn-info:hover {
-            background-color: #138496;
-            border-color: #117a8b;
-        }
-
-        .btn-warning {
-            background-color: #ffc107;
-            border-color: #ffc107;
-            color: #000;
-        }
-
-        .btn-warning:hover {
-            background-color: #e0a800;
-            border-color: #d39e00;
-        }
-
-        .btn-success {
-            background-color: #28a745;
-            border-color: #28a745;
-        }
-
-        .btn-success:hover {
-            background-color: #218838;
-            border-color: #1e7e34;
-        }
-
-        .container {
-            margin-top: 20px;
-        }
-    </style>
-</head>
-<body>
-    <?php include 'menu.php'; ?>
-    <div class="container">
-        <h1 class="my-4">Instrumentos Fuera de Uso</h1>
-        <table class="table table-striped">
-            <thead class="thead-dark">
-                <tr>
-                    <th>ID</th>
-                    <th>Descripción</th>
-                    <th>Marca</th>
-                    <th>Modelo</th>
-                    <th>Número de Serie</th>
-                    <th>Fecha de Calibración</th>
-                    <th>Fecha de Vencimiento</th>
-                    <th>Estado</th>
-                    <th>Comentarios</th>
-                    <th>Razón</th>
-                    <th>Fecha de Remoción</th>
-                    <th>Foto</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php while($row = $result->fetch_assoc()) { ?>
-                    <tr>
-                        <td><?php echo htmlspecialchars($row['ID']); ?></td>
-                        <td><?php echo htmlspecialchars($row['Description']); ?></td>
-                        <td><?php echo htmlspecialchars($row['Brand']); ?></td>
-                        <td><?php echo htmlspecialchars($row['Model']); ?></td>
-                        <td><?php echo htmlspecialchars($row['SerialNumber']); ?></td>
-                        <td><?php echo htmlspecialchars($row['CalDate']); ?></td>
-                        <td><?php echo htmlspecialchars($row['DueDate']); ?></td>
-                        <td><?php echo htmlspecialchars($row['Status']); ?></td>
-                        <td><?php echo htmlspecialchars($row['Comments']); ?></td>
-                        <td><?php echo htmlspecialchars($row['ReasonForRemoval']); ?></td>
-                        <td><?php echo htmlspecialchars($row['DateRemoved']); ?></td>
-                        <td><a href="<?php echo htmlspecialchars($row['Picture']); ?>" target="_blank">Ver Foto</a></td>
-                        <td class="actions">
-                            <form method="post" action="return_to_active.php" style="display:inline;">
-                                <input type="hidden" name="id" value="<?php echo $row['ID']; ?>">
-                                <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-undo"></i> Regresar</button>
-                            </form>
-                        </td>
-                    </tr>
-                <?php } ?>
-            </tbody>
-        </table>
+<div class="card p-3 table-density-comfort dt-container">
+  <div class="dt-toolbar">
+    <div class="input-group" style="max-width:320px;">
+      <span class="input-group-text"><i class="fa fa-magnifying-glass"></i></span>
+      <input type="text" class="form-control dt-search" placeholder="Buscar…">
     </div>
-</body>
-</html>
-<?php
-$conn->close();
-?>
+
+    <select class="form-select dt-density" style="max-width:180px;">
+      <option value="comfort" selected>Densidad: cómoda</option>
+      <option value="compact">Densidad: compacta</option>
+    </select>
+
+    <select class="form-select dt-rows-per-page" style="max-width:160px;">
+      <option value="10" selected>10 por página</option>
+      <option value="20">20 por página</option>
+      <option value="50">50 por página</option>
+      <option value="100">100 por página</option>
+    </select>
+
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">Columnas</button>
+      <div class="dropdown-menu dropdown-menu-dark p-2 colvis-menu">
+        <?php
+        $cols = ['ID','Descripción','Marca','Modelo','Serie','Cal.Date','Due.Date','Estado','Comentarios','Razón','Removido','Foto','Acciones'];
+        foreach ($cols as $i=>$c): ?>
+          <label class="dropdown-item d-flex align-items-center gap-2">
+            <input class="form-check-input me-2" type="checkbox" data-col="<?= $i ?>" checked>
+            <span><?= h($c) ?></span>
+          </label>
+        <?php endforeach; ?>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-scroll">
+      <table class="table table-striped table-hover align-middle">
+        <thead>
+          <tr>
+            <th class="th-sort" data-sort="text">ID <span class="sort-ind">▲▼</span></th>
+            <th class="th-sort" data-sort="text">Descripción <span class="sort-ind">▲▼</span></th>
+            <th class="th-sort" data-sort="text">Marca <span class="sort-ind">▲▼</span></th>
+            <th class="th-sort" data-sort="text">Modelo <span class="sort-ind">▲▼</span></th>
+            <th class="th-sort" data-sort="text">Serie <span class="sort-ind">▲▼</span></th>
+            <th class="th-sort" data-sort="date">Cal.Date <span class="sort-ind">▲▼</span></th>
+            <th class="th-sort" data-sort="date">Due.Date <span class="sort-ind">▲▼</span></th>
+            <th class="th-sort" data-sort="text">Estado <span class="sort-ind">▲▼</span></th>
+            <th>Comentarios</th>
+            <th class="th-sort" data-sort="text">Razón <span class="sort-ind">▲▼</span></th>
+            <th class="th-sort" data-sort="date">Removido <span class="sort-ind">▲▼</span></th>
+            <th>Foto</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($rows as $r): ?>
+          <tr>
+            <td><?= h($r['ID']) ?></td>
+            <td><?= h($r['Description']) ?></td>
+            <td><?= h($r['Brand']) ?></td>
+            <td><?= h($r['Model']) ?></td>
+            <td><?= h($r['SerialNumber']) ?></td>
+            <td><?= h($r['CalDate']) ?></td>
+            <td><?= h($r['DueDate']) ?></td>
+            <td><?= h($r['Status']) ?></td>
+            <td><?= h($r['Comments']) ?></td>
+            <td><?= h($r['ReasonForRemoval']) ?></td>
+            <td><?= h($r['DateRemoved']) ?></td>
+            <td>
+              <?php if (!empty($r['Picture'])): ?>
+                <img src="<?= h($r['Picture']) ?>" class="img-thumb" alt="foto" data-bs-toggle="modal" data-bs-target="#imagePreviewModal" data-src="<?= h($r['Picture']) ?>">
+              <?php else: ?>—<?php endif; ?>
+            </td>
+            <td>
+              <form method="post" action="return_to_active.php" class="d-inline">
+                <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+                <input type="hidden" name="id" value="<?= h($r['ID']) ?>">
+                <button type="submit" class="btn btn-success btn-sm"><i class="fa fa-rotate-left me-1"></i> Regresar</button>
+              </form>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center mt-2">
+    <small class="text-secondary">Búsqueda, orden y paginación en el navegador.</small>
+    <div class="dt-pager"></div>
+  </div>
+</div>
+
+<!-- Modal imagen -->
+<div class="modal fade" id="imagePreviewModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content bg-dark">
+      <div class="modal-header border-0">
+        <h5 class="modal-title">Vista previa</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body d-flex justify-content-center">
+        <img id="previewImage" src="" alt="Imagen" class="img-fluid rounded" style="max-height:75vh;">
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const imgModal = document.getElementById('imagePreviewModal');
+if (imgModal) {
+  imgModal.addEventListener('show.bs.modal', (ev) => {
+    const img = ev.relatedTarget;
+    const src = img?.getAttribute('data-src') || img?.getAttribute('src');
+    document.getElementById('previewImage').setAttribute('src', src || '');
+  });
+  imgModal.addEventListener('hidden.bs.modal', () => {
+    document.getElementById('previewImage').setAttribute('src', '');
+  });
+}
+</script>
+
+<?php include __DIR__.'/partials/footer.php'; ?>

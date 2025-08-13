@@ -1,0 +1,20 @@
+# Archivos sensibles
+.env
+
+# Archivos de cargas y documentos
+uploads/
+*.pdf
+*.jpeg
+*.jpg
+*.png
+*.jfif
+
+# Archivos temporales o de caché
+*.log
+*.tmp
+.DS_Store
+node_modules/
+vendor/
+
+# Configuraciones locales
+*.local
