@@ -28,7 +28,7 @@ function active(string $file): string {
   <div class="container-fluid">
     <a class="navbar-brand d-flex align-items-center gap-2" href="index.php">
       <img src="imagenes/calibracion.png" alt="Logo" class="brand-logo">
-      <span class="fw-semibold">Calibraciones</span>
+      <span class="fw-semibold">Test Instruments</span>
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topnav">
       <span class="navbar-toggler-icon"></span>
@@ -36,26 +36,66 @@ function active(string $file): string {
     <div id="topnav" class="collapse navbar-collapse">
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
         <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
-          <li class="nav-item">
-            <a class="nav-link <?= active('admin.php') ?>" href="admin.php">
-              <i class="fa fa-screwdriver-wrench me-1"></i>Administrar
+
+          <!-- Dropdown Instrumentos de medición -->
+          <?php
+            $instPages = ['admin.php','out_of_use.php','report.php'];
+            $instActive = in_array($current, $instPages, true) ? 'active' : '';
+          ?>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle <?= $instActive ?>"
+               href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="fa fa-microscope me-1"></i>Instrumentos de medición
             </a>
+            <ul class="dropdown-menu dropdown-menu-dark">
+              <li>
+                <a class="dropdown-item <?= active('admin.php') ?>" href="admin.php">
+                  <i class="fa fa-screwdriver-wrench me-2"></i>Administrar
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item <?= active('out_of_use.php') ?>" href="out_of_use.php">
+                  <i class="fa fa-box-archive me-2"></i>Fuera de uso
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item <?= active('report.php') ?>" href="report.php">
+                  <i class="fa fa-chart-column me-2"></i>Reportes
+                </a>
+              </li>
+            </ul>
           </li>
-          <li class="nav-item">
-            <a class="nav-link <?= active('out_of_use.php') ?>" href="out_of_use.php">
-              <i class="fa fa-box-archive me-1"></i>Fuera de uso
+
+          <!-- Dropdown Golden -->
+          <?php
+            $goldPages = ['golden_admin.php','golden_add.php'];
+            $goldActive = in_array($current, $goldPages, true) ? 'active' : '';
+          ?>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle <?= $goldActive ?>"
+               href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="fa fa-crown me-1"></i>Golden
             </a>
+            <ul class="dropdown-menu dropdown-menu-dark">
+              <li>
+                <a class="dropdown-item <?= active('golden_admin.php') ?>" href="golden_admin.php">
+                  <i class="fa fa-clipboard-list me-2"></i>Inventario
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item <?= active('golden_add.php') ?>" href="golden_add.php">
+                  <i class="fa fa-plus me-2"></i>Nuevo
+                </a>
+              </li>
+            </ul>
           </li>
-          <li class="nav-item">
-            <a class="nav-link <?= active('report.php') ?>" href="report.php">
-              <i class="fa fa-chart-column me-1"></i>Reportes
-            </a>
-          </li>
+
           <li class="nav-item">
             <a class="nav-link <?= active('users_admin.php') ?>" href="users_admin.php">
               <i class="fa fa-users-gear me-1"></i>Usuarios
             </a>
           </li>
+
         <?php else: ?>
           <li class="nav-item">
             <a class="nav-link <?= active('consulta_dashboard.php') ?>" href="consulta_dashboard.php">

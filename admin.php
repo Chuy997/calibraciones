@@ -126,7 +126,9 @@ function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES,
             <td><?= h($r['ID']) ?></td>
             <td>
               <?php if (!empty($r['Picture'])): ?>
-                <img src="<?= h($r['Picture']) ?>" class="img-thumb" alt="foto">
+                <img src="<?= h($r['Picture']) ?>" class="img-thumb" alt="foto"
+                     data-bs-toggle="modal" data-bs-target="#imagePreviewModal"
+                     data-src="<?= h($r['Picture']) ?>">
               <?php else: ?>—<?php endif; ?>
             </td>
             <td><?= h($r['Description']) ?></td>
@@ -166,5 +168,34 @@ function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES,
     <div class="dt-pager"></div>
   </div>
 </div>
+
+<!-- Modal imagen (igual que en history.php) -->
+<div class="modal fade" id="imagePreviewModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content bg-dark">
+      <div class="modal-header border-0">
+        <h5 class="modal-title">Vista previa</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body d-flex justify-content-center">
+        <img id="previewImage" src="" alt="Imagen" class="img-fluid rounded" style="max-height:75vh;">
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const imgModal = document.getElementById('imagePreviewModal');
+if (imgModal) {
+  imgModal.addEventListener('show.bs.modal', (ev) => {
+    const img = ev.relatedTarget;
+    const src = img?.getAttribute('data-src') || img?.getAttribute('src');
+    document.getElementById('previewImage').setAttribute('src', src || '');
+  });
+  imgModal.addEventListener('hidden.bs.modal', () => {
+    document.getElementById('previewImage').setAttribute('src', '');
+  });
+}
+</script>
 
 <?php include __DIR__.'/partials/footer.php'; ?>
