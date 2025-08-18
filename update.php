@@ -51,6 +51,11 @@ $pdfPath       = (string)($instrument['PdfPath'] ?? '');
 $picturePath   = (string)($instrument['Picture'] ?? '');
 $certificateNo = (string)($instrument['CertificateNo'] ?? '');
 
+// Normaliza rutas existentes para la vista (por si quedaron sin / inicial)
+$norm = fn(string $p)=> $p ? ('/'.ltrim($p,'/')) : '';
+$pdfPathView     = $norm($pdfPath);
+$picturePathView = $norm($picturePath);
+
 // Valores que SÍ se pueden cambiar
 $values = [
   'calDate'  => (string)($instrument['CalDate'] ?? ''),
@@ -74,9 +79,22 @@ function autoState(string $dueYmd): string {
     return ($dueYmd < $today) ? STATE_FUERA : STATE_CALIBRADO;
 }
 
+function uploadErrMsg(int $code): string {
+    return match ($code) {
+        UPLOAD_ERR_INI_SIZE   => 'El archivo excede el tamaño permitido por el servidor (upload_max_filesize).',
+        UPLOAD_ERR_FORM_SIZE  => 'El archivo excede el tamaño permitido por el formulario (MAX_FILE_SIZE).',
+        UPLOAD_ERR_PARTIAL    => 'El archivo se subió parcialmente.',
+        UPLOAD_ERR_NO_FILE    => 'No se subió ningún archivo.',
+        UPLOAD_ERR_NO_TMP_DIR => 'Falta el directorio temporal en el servidor.',
+        UPLOAD_ERR_CANT_WRITE => 'No se pudo escribir el archivo en disco.',
+        UPLOAD_ERR_EXTENSION  => 'Una extensión de PHP detuvo la subida.',
+        default               => 'Error desconocido en la subida.',
+    };
+}
+
 /**
  * Manejar subida validando tamaño/mime/ext. Guarda en $destDir ABSOLUTO.
- * Retorna ruta relativa web (p.ej. calibraciones/uploads/ID/archivo.ext) o null si no hay archivo.
+ * Retorna URL ABSOLUTA web (p.ej. /calibraciones/uploads/ID/archivo.ext) o null si no hay archivo.
  * $kind = 'pdf' | 'img'
  */
 function handleUpload(string $field, string $destDir, string $kind): ?string {
@@ -84,32 +102,34 @@ function handleUpload(string $field, string $destDir, string $kind): ?string {
         return null;
     }
     if ($_FILES[$field]['error'] !== UPLOAD_ERR_OK) {
-        throw new RuntimeException("Error al subir $field (código {$_FILES[$field]['error']}).");
+        throw new RuntimeException("Error al subir $field: " . uploadErrMsg((int)$_FILES[$field]['error']));
     }
 
     $tmp  = $_FILES[$field]['tmp_name'];
-    $name = $_FILES[$field]['name'];
-    $size = (int)$_FILES[$field]['size'];
-    $ext  = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+    $name = $_FILES[$field]['name'] ?? $kind;
+    $size = (int)($_FILES[$field]['size'] ?? 0);
+    $ext  = strtolower(pathinfo($name, PATHINFO_EXTENSION) ?: '');
 
     if ($kind === 'pdf') {
-        if ($size > MAX_PDF_BYTES) throw new RuntimeException("El PDF excede el tamaño permitido.");
+        if ($size > MAX_PDF_BYTES) throw new RuntimeException("El PDF excede el tamaño permitido (20MB).");
         if (!in_array($ext, $GLOBALS['ALLOWED_PDF_EXT'], true)) throw new RuntimeException("Extensión de PDF no permitida.");
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
         $mime  = finfo_file($finfo, $tmp) ?: '';
         finfo_close($finfo);
         if (stripos($mime, 'pdf') === false) throw new RuntimeException("El archivo no es un PDF válido.");
     } else {
-        if ($size > MAX_IMG_BYTES) throw new RuntimeException("La imagen excede el tamaño permitido.");
+        if ($size > MAX_IMG_BYTES) throw new RuntimeException("La imagen excede el tamaño permitido (5MB).");
         if (!in_array($ext, $GLOBALS['ALLOWED_IMG_EXT'], true)) throw new RuntimeException("Extensión de imagen no permitida.");
         if (@getimagesize($tmp) === false) throw new RuntimeException("El archivo de imagen es inválido.");
     }
 
+    // Asegurar directorio por instrumento (uploads/{ID}/)
     if (!is_dir($destDir) && !mkdir($destDir, 0755, true) && !is_dir($destDir)) {
         throw new RuntimeException("No se pudo crear el directorio de destino.");
     }
 
     $safeBase = preg_replace('/[^A-Za-z0-9_\-]/', '_', pathinfo($name, PATHINFO_FILENAME));
+    if ($safeBase === '') $safeBase = $kind;
     $final    = $safeBase . '_' . time() . '.' . $ext;
     $destAbs  = rtrim($destDir, '/').'/'.$final;
 
@@ -117,13 +137,15 @@ function handleUpload(string $field, string $destDir, string $kind): ?string {
         throw new RuntimeException("No se pudo mover el archivo subido.");
     }
 
-    // Retornar ruta relativa web
-    $docroot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/').'/';
-    $rel     = ltrim(str_replace($docroot, '', $destAbs), '/');
-    if ($docroot && !str_starts_with($rel, 'calibraciones/')) {
-        $rel = 'calibraciones/' . ltrim($rel, '/');
+    // Construir URL ABSOLUTA servible: /calibraciones/uploads/ID/archivo.ext
+    // DocumentRoot típico: /var/www/html
+    $docroot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '/var/www/html', '/') . '/';
+    $rel     = ltrim(str_replace($docroot, '', $destAbs), '/'); // p.ej. calibraciones/uploads/ID/archivo.ext
+    // Asegurar prefijo calibraciones/ si hiciera falta (por despliegues alternos)
+    if (!str_starts_with($rel, 'calibraciones/')) {
+        $rel = 'calibraciones/' . $rel;
     }
-    return $rel;
+    return '/' . ltrim($rel, '/'); // devolver ABSOLUTA
 }
 
 // 3) Si es POST, procesar formulario
@@ -153,16 +175,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $pdo->beginTransaction();
 
-            // Carpeta de este instrumento
-            $projectRoot = __DIR__; // /var/www/html/calibraciones
+            // Carpeta de este instrumento: /var/www/html/calibraciones/uploads/{ID}/
+            $projectRoot = __DIR__;
             $destDirAbs  = $projectRoot . '/uploads/' . $id . '/';
 
-            // Subir archivos si se enviaron
-            $newPdfRel     = handleUpload('pdf',     $destDirAbs, 'pdf'); // null si no hay nuevo
-            $newPictureRel = handleUpload('picture', $destDirAbs, 'img'); // null si no hay nuevo
+            // Subir archivos si se enviaron (devuelven URL absolutas)
+            $newPdfUrl     = handleUpload('pdf',     $destDirAbs, 'pdf'); // null si no hay nuevo
+            $newPictureUrl = handleUpload('picture', $destDirAbs, 'img'); // null si no hay nuevo
 
-            if ($newPdfRel !== null)       { $pdfPath     = $newPdfRel; }
-            if ($newPictureRel !== null)   { $picturePath = $newPictureRel; }
+            if ($newPdfUrl !== null)     { $pdfPath     = $newPdfUrl; }
+            if ($newPictureUrl !== null) { $picturePath = $newPictureUrl; }
 
             // Estado automático
             $statusAuto = autoState($values['dueDate']); // 'calibrado' o 'fuera de calibracion'
@@ -170,12 +192,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Actualizar SOLO campos permitidos
             $upd = $pdo->prepare("
                 UPDATE instruments
-                   SET CalDate=:CalDate,
-                       DueDate=:DueDate,
-                       Status =:Status,
-                       Comments=:Comments,
-                       PdfPath =:PdfPath,
-                       Picture=:Picture
+                   SET CalDate  = :CalDate,
+                       DueDate  = :DueDate,
+                       Status   = :Status,
+                       Comments = :Comments,
+                       PdfPath  = :PdfPath,
+                       Picture  = :Picture
                  WHERE ID = :ID
             ");
             $upd->execute([
@@ -243,8 +265,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
     <?php endif; ?>
 
-    <form method="POST" action="update.php?id=<?=
-      h($id) ?>" enctype="multipart/form-data" class="needs-validation" novalidate>
+    <form method="POST" action="update.php?id=<?= h($id) ?>" enctype="multipart/form-data" class="needs-validation" novalidate>
       <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
       <input type="hidden" name="id" value="<?= h($id) ?>">
 
@@ -283,14 +304,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <div class="col-sm-6">
           <label class="form-label">Fecha de Vencimiento</label>
-          <input type="date" class="form-control" id="dueDatePreview" value="<?= h($values['dueDate']) ?>" disabled>
+          <?php
+            $duePreview = $values['dueDate']
+              ?: ($values['calDate'] ? plusOneYear($values['calDate']) : '');
+          ?>
+          <input type="date" class="form-control" id="dueDatePreview" value="<?= h($duePreview) ?>" disabled>
           <div class="form-text">Se calcula automáticamente en base a la fecha de calibración.</div>
         </div>
 
         <div class="col-sm-6">
           <label class="form-label">Estado (automático)</label>
           <?php
-            $statusPreview = autoState($values['dueDate'] ?: ($values['calDate'] ? plusOneYear($values['calDate']) : date('Y-m-d')));
+            $statusPreview = $duePreview ? autoState($duePreview) : '';
           ?>
           <input type="text" class="form-control" id="statusPreview"
                  value="<?= h($statusPreview) ?>" disabled>
@@ -306,8 +331,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="col-md-6">
           <label class="form-label d-flex align-items-center justify-content-between">
             <span>PDF del proveedor</span>
-            <?php if ($pdfPath): ?>
-              <a href="<?= h($pdfPath) ?>" target="_blank" class="small text-decoration-none">
+            <?php if ($pdfPathView): ?>
+              <a href="<?= h($pdfPathView) ?>" target="_blank" class="small text-decoration-none">
                 <i class="fa fa-file-pdf me-1"></i>Ver actual
               </a>
             <?php endif; ?>
@@ -322,8 +347,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="col-md-6">
           <label class="form-label d-flex align-items-center justify-content-between">
             <span>Foto del instrumento</span>
-            <?php if ($picturePath): ?>
-              <a href="<?= h($picturePath) ?>" target="_blank" class="small text-decoration-none">
+            <?php if ($picturePathView): ?>
+              <a href="<?= h($picturePathView) ?>" target="_blank" class="small text-decoration-none">
                 <i class="fa fa-image me-1"></i>Ver actual
               </a>
             <?php endif; ?>
@@ -354,14 +379,15 @@ const statusPrev= document.getElementById('statusPreview');
 
 function toYMD(d){ const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
 function addOneYear(ymd){
+  if(!ymd) return '';
   const [y,m,d] = ymd.split('-').map(Number);
   const dt = new Date(y, m-1, d);
   dt.setFullYear(dt.getFullYear()+1);
-  // Ajuste por fin de mes (si mes cambió, retrocede al último día del mes anterior)
   if (dt.getMonth() !== (m-1)) { dt.setDate(0); }
   return toYMD(dt);
 }
-function autoState(dueYmd){
+function autoStateJS(dueYmd){
+  if(!dueYmd) return '';
   const today = toYMD(new Date());
   return (dueYmd < today) ? 'fuera de calibracion' : 'calibrado';
 }
@@ -369,10 +395,10 @@ function autoState(dueYmd){
 if (calInput) {
   calInput.addEventListener('change', ()=>{
     const cal = calInput.value;
-    if (!cal) return;
+    if (!cal) { duePrev.value=''; statusPrev.value=''; return; }
     const due = addOneYear(cal);
     duePrev.value = due;
-    statusPrev.value = autoState(due);
+    statusPrev.value = autoStateJS(due);
   });
 }
 

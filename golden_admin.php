@@ -21,6 +21,7 @@ SELECT
   Status,
   Picture,
   Document,
+  Pedimento,
   Comments,
   CreatedAt,
   UpdatedAt
@@ -62,7 +63,7 @@ $rows = pdo()->query($sql)->fetchAll();
         <?php
           $cols = [
             'ID','Foto','Descripción','Marca','Modelo','Serie',
-            'Ubicación','Depto','Responsable','Estado','Documento','Acciones'
+            'Ubicación','Depto','Responsable','Estado','Documento','Pedimento','Acciones'
           ];
           foreach ($cols as $i=>$c): ?>
           <label class="dropdown-item d-flex align-items-center gap-2">
@@ -98,6 +99,7 @@ $rows = pdo()->query($sql)->fetchAll();
             <th class="th-sort" data-sort="text">Responsable <span class="sort-ind">▲▼</span></th>
             <th class="th-sort" data-sort="text">Estado <span class="sort-ind">▲▼</span></th>
             <th>Documento</th>
+            <th class="th-sort" data-sort="text">Pedimento <span class="sort-ind">▲▼</span></th>
             <th>Acciones</th>
           </tr>
         </thead>
@@ -131,6 +133,7 @@ $rows = pdo()->query($sql)->fetchAll();
                 </a>
               <?php else: ?>—<?php endif; ?>
             </td>
+            <td><?= h($r['Pedimento']) ?></td>
             <td>
               <div class="btn-group">
                 <a class="btn btn-primary btn-sm" href="golden_update.php?id=<?= urlencode((string)$r['ID']) ?>" title="Editar">
