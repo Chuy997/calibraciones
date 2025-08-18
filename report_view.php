@@ -91,9 +91,9 @@ $pending_data = array_map(fn($m)=>$counts[$m]??0, $pending_labels);
       <input type="text" class="form-control dt-search" placeholder="Buscar…">
     </div>
     <select class="form-select dt-rows-per-page" style="max-width:160px;">
-      <option value="10" selected>10 por página</option>
+      <option value="10">10 por página</option>
       <option value="20">20 por página</option>
-      <option value="50">50 por página</option>
+      <option value="50"selected>50 por página</option>
     </select>
     <div class="ms-auto d-flex gap-2">
       <select class="form-select dt-filter" data-col="7" style="max-width:220px;">

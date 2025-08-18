@@ -64,14 +64,22 @@ function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES,
     <h2 class="h6 text-uppercase text-secondary mb-2">Golden</h2>
   </div>
   <div class="row g-3">
-    <div class="col-12 col-md-6">
+    <div class="col-12 col-md-6 col-lg-4">
       <div class="p-3 h-100" style="border:1px solid #222325;border-radius:12px;">
         <h3 class="h6 mb-3"><i class="fa fa-clipboard-list me-2"></i>Inventario</h3>
         <p class="text-secondary small">Consulta, historial y envío a Scrap.</p>
         <a href="golden_admin.php" class="btn btn-success w-100"><i class="fa fa-arrow-right me-2"></i>Abrir inventario</a>
       </div>
     </div>
-    <div class="col-12 col-md-6">
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="p-3 h-100" style="border:1px solid #222325;border-radius:12px;">
+        <h3 class="h6 mb-3"><i class="fa fa-box-archive me-2"></i>Scrap</h3>
+        <p class="text-secondary small">Consulta de material Scrap.</p>
+        <a href="golden_scrap.php" class="btn btn-outline-secondary w-100"><i class="fa fa-arrow-right me-2"></i>Ver listado</a>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-lg-4">
       <div class="p-3 h-100" style="border:1px solid #222325;border-radius:12px;">
         <h3 class="h6 mb-3"><i class="fa fa-plus me-2"></i>Nuevo</h3>
         <p class="text-secondary small">Registro rápido desde móvil con foto y documento.</p>
@@ -79,6 +87,7 @@ function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES,
       </div>
     </div>
   </div>
+  
 
 <?php else: ?>
   <!-- CONSULTA: accesos de solo lectura -->

@@ -67,9 +67,9 @@ $rows = $pdo->query("
     </div>
 
     <select class="form-select dt-rows-per-page" style="max-width:160px;">
-      <option value="10" selected>10 por página</option>
+      <option value="10">10 por página</option>
       <option value="20">20 por página</option>
-      <option value="50">50 por página</option>
+      <option value="50"selected>50 por página</option>
     </select>
 
     <div class="dropdown">

@@ -122,14 +122,14 @@ $pending_data = array_map(fn($m)=>$counts[$m]??0, $pending_labels);
     </div>
 
     <select class="form-select dt-density" style="max-width:180px;">
-      <option value="comfort" selected>Densidad: cómoda</option>
-      <option value="compact">Densidad: compacta</option>
+      <option value="comfort">Densidad: cómoda</option>
+      <option value="compact"selected>Densidad: compacta</option>
     </select>
 
     <select class="form-select dt-rows-per-page" style="max-width:160px;">
-      <option value="10" selected>10 por página</option>
+      <option value="10">10 por página</option>
       <option value="20">20 por página</option>
-      <option value="50">50 por página</option>
+      <option value="50"selected>50 por página</option>
       <option value="100">100 por página</option>
     </select>
 
