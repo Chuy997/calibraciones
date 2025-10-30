@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf']) || !csrf_validate($_POST['csrf'])) {
         $errors[] = 'Sesión expirada. Intenta de nuevo.';
     }
-    // Validar razón
+    // Validar razón (mismas opciones que manejas en UI/BD)
     $allowedReasons = ['Obsoleto', 'Fuera de Calibración', 'No Funciona'];
     if (!in_array($reason, $allowedReasons, true)) {
         $errors[] = 'Razón inválida.';
@@ -31,9 +31,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$errors) {
         try {
             $pdo = pdo();
+
+            // Fuerza charset y collation de la conexión para evitar mixes
+            $pdo->exec("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+            $pdo->exec("SET collation_connection = utf8mb4_unicode_ci");
+
             // Llamada al procedimiento almacenado
+            // Nota: si tu SP compara cadenas, ahora la conexión y los literales usan unicode_ci
             $stmt = $pdo->prepare("CALL MoveInstrumentOutOfUse(:id, :reason)");
             $stmt->execute([':id' => $id, ':reason' => $reason]);
+
             // Consumir posibles resultsets extra de CALL
             while ($stmt->nextRowset()) {}
             $stmt->closeCursor();
