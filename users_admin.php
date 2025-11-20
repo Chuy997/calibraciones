@@ -15,10 +15,10 @@ $success = null;
 
 /** Helpers */
 function is_valid_role(string $r): bool {
-  return in_array($r, ['admin','consulta'], true);
+  return in_array($r, ['admin','operator'], true); // ajustado a tu esquema
 }
 function username_exists(PDO $pdo, string $u, ?int $ignoreId=null): bool {
-  $sql = 'SELECT id FROM users WHERE username = ?'.($ignoreId ? ' AND id <> ?' : '');
+  $sql = 'SELECT userID FROM users WHERE username = ?'.($ignoreId ? ' AND userID <> ?' : '');
   $st  = $pdo->prepare($sql);
   $st->execute($ignoreId ? [$u,$ignoreId] : [$u]);
   return (bool)$st->fetchColumn();
@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $action = $_POST['action'] ?? '';
     if ($action === 'create') {
       $username = trim($_POST['username'] ?? '');
-      $role     = trim($_POST['role'] ?? 'consulta');
+      $role     = trim($_POST['role'] ?? 'operator');
       $pass1    = (string)($_POST['password'] ?? '');
       $pass2    = (string)($_POST['password2'] ?? '');
 
@@ -62,9 +62,9 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
       if (!is_valid_role($role)) throw new RuntimeException('Rol inválido.');
       if (username_exists($pdo,$user,$id)) throw new RuntimeException('Ya existe otro usuario con ese nombre.');
 
-      // Si se cambia rol del último admin a consulta -> bloquear
+      // Si se cambia rol del último admin a operator -> bloquear
       if ($role !== 'admin') {
-        $current = $pdo->prepare('SELECT username, role FROM users WHERE id=?');
+        $current = $pdo->prepare('SELECT username, role FROM users WHERE userID=?');
         $current->execute([$id]);
         $row = $current->fetch();
         if ($row && $row['role']==='admin' && count_admins($pdo) <= 1) {
@@ -73,11 +73,11 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
       }
 
       $pdo->beginTransaction();
-      $pdo->prepare('UPDATE users SET username=?, role=? WHERE id=?')->execute([$user,$role,$id]);
+      $pdo->prepare('UPDATE users SET username=?, role=? WHERE userID=?')->execute([$user,$role,$id]);
       if ($pass !== '') {
         if (strlen($pass)<8) throw new RuntimeException('La nueva contraseña debe tener al menos 8 caracteres.');
         $hash = password_hash($pass, PASSWORD_DEFAULT);
-        $pdo->prepare('UPDATE users SET password=? WHERE id=?')->execute([$hash,$id]);
+        $pdo->prepare('UPDATE users SET password=? WHERE userID=?')->execute([$hash,$id]);
       }
       $pdo->commit();
       $success = 'Usuario actualizado.';
@@ -89,14 +89,14 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
       $id = (int)($_POST['id'] ?? 0);
       if ($id<=0) throw new RuntimeException('ID inválido.');
 
-      $st = $pdo->prepare('SELECT username, role FROM users WHERE id=?');
+      $st = $pdo->prepare('SELECT username, role FROM users WHERE userID=?');
       $st->execute([$id]);
       $row = $st->fetch();
       if (!$row) throw new RuntimeException('Usuario no encontrado.');
       if ($row['username'] === $me) throw new RuntimeException('No puedes eliminar tu propio usuario.');
       if ($row['role']==='admin' && count_admins($pdo)<=1) throw new RuntimeException('No puedes eliminar al último administrador.');
 
-      $pdo->prepare('DELETE FROM users WHERE id=?')->execute([$id]);
+      $pdo->prepare('DELETE FROM users WHERE userID=?')->execute([$id]);
       $success = 'Usuario eliminado.';
     } else {
       throw new RuntimeException('Acción no reconocida.');
@@ -107,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
 }
 
 /** Listado */
-$users = $pdo->query('SELECT id, username, role FROM users ORDER BY id DESC')->fetchAll();
+$users = $pdo->query('SELECT userID, username, role FROM users ORDER BY userID DESC')->fetchAll();
 ?>
 <?php include __DIR__.'/partials/header.php'; ?>
 
@@ -138,7 +138,7 @@ $users = $pdo->query('SELECT id, username, role FROM users ORDER BY id DESC')->f
         <div>
           <label class="form-label">Rol</label>
           <select name="role" class="form-select">
-            <option value="consulta">consulta (solo lectura)</option>
+            <option value="operator">operator (solo lectura)</option>
             <option value="admin">admin</option>
           </select>
         </div>
@@ -175,17 +175,17 @@ $users = $pdo->query('SELECT id, username, role FROM users ORDER BY id DESC')->f
             <tbody>
             <?php foreach ($users as $u): ?>
               <tr>
-                <td><?= (int)$u['id'] ?></td>
+                <td><?= (int)$u['userID'] ?></td>
                 <td>
                   <form method="post" class="d-flex gap-2 align-items-center flex-wrap">
                     <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
                     <input type="hidden" name="action" value="update">
-                    <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
+                    <input type="hidden" name="id" value="<?= (int)$u['userID'] ?>">
                     <input name="username" class="form-control form-control-sm" value="<?= h($u['username']) ?>" required maxlength="50" pattern="[A-Za-z0-9._-]{3,50}">
                 </td>
                 <td>
                     <select name="role" class="form-select form-select-sm">
-                      <option value="consulta" <?= $u['role']==='consulta'?'selected':''; ?>>consulta</option>
+                      <option value="operator" <?= $u['role']==='operator'?'selected':''; ?>>operator</option>
                       <option value="admin"    <?= $u['role']==='admin'?'selected':''; ?>>admin</option>
                     </select>
                 </td>
@@ -196,7 +196,7 @@ $users = $pdo->query('SELECT id, username, role FROM users ORDER BY id DESC')->f
                   <form method="post" class="d-inline" onsubmit="return confirm('¿Eliminar usuario?');">
                     <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
                     <input type="hidden" name="action" value="delete">
-                    <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
+                    <input type="hidden" name="id" value="<?= (int)$u['userID'] ?>">
                     <button class="btn btn-sm btn-danger"><i class="fa fa-trash me-1"></i> Eliminar</button>
                   </form>
                 </td>

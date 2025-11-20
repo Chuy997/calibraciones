@@ -59,11 +59,32 @@ function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES,
     </div>
   </div>
 
+  <!-- ADMIN: Linpu F1200 -->
+  <div class="mb-2">
+    <h2 class="h6 text-uppercase text-secondary mb-2">Linpu F1200</h2>
+  </div>
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="p-3 h-100" style="border:1px solid #222325;border-radius:12px;">
+        <h3 class="h6 mb-3"><i class="fa fa-list-check me-2"></i>Registros</h3>
+        <p class="text-secondary small">Listado de calibraciones con filtros y estado.</p>
+        <a href="linpu_admin.php" class="btn btn-secondary w-100"><i class="fa fa-arrow-right me-2"></i>Ver registros</a>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="p-3 h-100" style="border:1px solid #222325;border-radius:12px;">
+        <h3 class="h6 mb-3"><i class="fa fa-plus me-2"></i>Nueva calibración</h3>
+        <p class="text-secondary small">Registrar mediciones 1310/1550 nm con foto opcional.</p>
+        <a href="linpu_add.php" class="btn btn-outline-secondary w-100"><i class="fa fa-arrow-right me-2"></i>Registrar ahora</a>
+      </div>
+    </div>
+  </div>
+
   <!-- ADMIN: Golden -->
   <div class="mb-2">
     <h2 class="h6 text-uppercase text-secondary mb-2">Golden</h2>
   </div>
-  <div class="row g-3">
+  <div class="row g-3 mb-4">
     <div class="col-12 col-md-6 col-lg-4">
       <div class="p-3 h-100" style="border:1px solid #222325;border-radius:12px;">
         <h3 class="h6 mb-3"><i class="fa fa-clipboard-list me-2"></i>Inventario</h3>
@@ -87,11 +108,53 @@ function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES,
       </div>
     </div>
   </div>
+
   
+  <!-- ADMIN: Mediciones -->
+  <div class="mb-2">
+    <h2 class="h6 text-uppercase text-secondary mb-2">Mediciones</h2>
+  </div>
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-lg-4">
+      <div class="p-3 h-100" style="border:1px solid #222325;border-radius:12px;">
+        <h3 class="h6 mb-3"><i class="fa fa-chart-line me-2"></i>Dashboard</h3>
+        <p class="text-secondary small">Gráficas de partículas 0.5 µm y 5.0 µm.</p>
+        <a href="mediciones/dashboard.php" class="btn btn-warning w-100"><i class="fa fa-arrow-right me-2"></i>Ver dashboard</a>
+      </div>
+    </div>
+    <div class="col-12 col-lg-4">
+      <div class="p-3 h-100" style="border:1px solid #222325;border-radius:12px;">
+        <h3 class="h6 mb-3"><i class="fa fa-plus me-2"></i>Nuevo registro</h3>
+        <p class="text-secondary small">Captura manual de mediciones.</p>
+        <a href="mediciones/index.html" class="btn btn-outline-warning w-100"><i class="fa fa-arrow-right me-2"></i>Registrar datos</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN: Torques -->
+  <div class="mb-2">
+    <h2 class="h6 text-uppercase text-secondary mb-2">Torques</h2>
+  </div>
+  <div class="row g-3">
+    <div class="col-12 col-lg-4">
+      <div class="p-3 h-100" style="border:1px solid #222325;border-radius:12px;">
+        <h3 class="h6 mb-3"><i class="fa fa-tachometer-alt me-2"></i>Dashboard</h3>
+        <p class="text-secondary small">Monitoreo, KPIs y tendencias de calibración.</p>
+        <a href="torque/dashboard.php" class="btn btn-info w-100"><i class="fa fa-arrow-right me-2"></i>Ver dashboard</a>
+      </div>
+    </div>
+    <div class="col-12 col-lg-4">
+      <div class="p-3 h-100" style="border:1px solid #222325;border-radius:12px;">
+        <h3 class="h6 mb-3"><i class="fa fa-list me-2"></i>Registros</h3>
+        <p class="text-secondary small">Listado de calibraciones recientes.</p>
+        <a href="torque/index.php" class="btn btn-outline-info w-100"><i class="fa fa-arrow-right me-2"></i>Ver registros</a>
+      </div>
+    </div>
+  </div>
 
 <?php else: ?>
   <!-- CONSULTA: accesos de solo lectura -->
-  <div class="row g-3">
+  <div class="row g-3 mb-4">
     <div class="col-12 col-lg-4">
       <div class="p-3 h-100" style="border:1px solid #222325;border-radius:12px;">
         <h3 class="h6 mb-3"><i class="fa fa-magnifying-glass me-2"></i>Consulta de instrumentos</h3>
@@ -113,6 +176,42 @@ function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES,
         <h3 class="h6 mb-3"><i class="fa fa-crown me-2"></i>Golden – Inventario</h3>
         <p class="text-secondary small">Listado y revisión (solo lectura).</p>
         <a href="golden_view.php" class="btn btn-outline-success w-100"><i class="fa fa-arrow-right me-2"></i>Ver Golden</a>
+      </div>
+    </div>
+  </div>
+
+  
+  <!-- CONSULTA: Mediciones -->
+  <div class="mb-2">
+    <h2 class="h6 text-uppercase text-secondary mb-2">Mediciones</h2>
+  </div>
+  <div class="row g-3">
+    <div class="col-12 col-lg-4">
+      <div class="p-3 h-100" style="border:1px solid #222325;border-radius:12px;">
+        <h3 class="h6 mb-3"><i class="fa fa-chart-line me-2"></i>Dashboard</h3>
+        <p class="text-secondary small">Gráficas de partículas 0.5 µm y 5.0 µm.</p>
+        <a href="mediciones/dashboard.php" class="btn btn-warning w-100"><i class="fa fa-arrow-right me-2"></i>Ver dashboard</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONSULTA: Torques -->
+  <div class="mb-2">
+    <h2 class="h6 text-uppercase text-secondary mb-2">Torques</h2>
+  </div>
+  <div class="row g-3">
+    <div class="col-12 col-lg-4">
+      <div class="p-3 h-100" style="border:1px solid #222325;border-radius:12px;">
+        <h3 class="h6 mb-3"><i class="fa fa-tachometer-alt me-2"></i>Dashboard</h3>
+        <p class="text-secondary small">KPIs y tendencias de calibración.</p>
+        <a href="torque/dashboard.php" class="btn btn-info w-100"><i class="fa fa-arrow-right me-2"></i>Ver dashboard</a>
+      </div>
+    </div>
+    <div class="col-12 col-lg-4">
+      <div class="p-3 h-100" style="border:1px solid #222325;border-radius:12px;">
+        <h3 class="h6 mb-3"><i class="fa fa-list me-2"></i>Registros</h3>
+        <p class="text-secondary small">Listado de calibraciones recientes.</p>
+        <a href="torque/index.php" class="btn btn-outline-info w-100"><i class="fa fa-arrow-right me-2"></i>Ver registros</a>
       </div>
     </div>
   </div>

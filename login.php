@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($username === '' || $password === '') {
             $error = 'Usuario y contraseña son obligatorios.';
         } else {
-            $stmt = pdo()->prepare('SELECT id, username, password, role FROM users WHERE username = ?');
+            $stmt = pdo()->prepare('SELECT userID AS id, username, password, role FROM users WHERE username = ?');
             $stmt->execute([$username]);
             $user = $stmt->fetch();
 
