@@ -2,7 +2,7 @@
 require_once 'config.php';
 require_auth('admin');
 
-$pdo = pdo(); // ← Corrección esencial
+$pdo = pdo();
 
 $serial = trim($_GET['serial'] ?? '');
 if (!$serial) {
@@ -23,14 +23,14 @@ $records = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 <?php include 'partials/header.php'; ?>
 <div class="container mt-4">
-    <h2>Historial - Linpu F1200 (<?= htmlspecialchars($serial) ?>)</h2>
+    <h2 class="mb-3">Historial - Linpu F1200 (<?= htmlspecialchars($serial) ?>)</h2>
 
     <?php if (empty($records)): ?>
         <div class="alert alert-warning">No hay registros para este número de serie.</div>
         <a href="linpu_admin.php" class="btn btn-secondary">Volver</a>
     <?php else: ?>
         <!-- Gráfica simple de desviación -->
-        <div class="card mb-4">
+        <div class="card bg-dark border border-secondary mb-4">
             <div class="card-header">Desviación por Longitud de Onda</div>
             <div class="card-body">
                 <?php
@@ -40,36 +40,48 @@ $records = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 $latest1310 = $data1310 ? end($data1310) : null;
                 $latest1550 = $data1550 ? end($data1550) : null;
                 ?>
-                <div class="row">
+                <div class="row g-3">
                     <?php if ($latest1310): ?>
-                    <div class="col-md-6 mb-3">
-                        <div class="text-center small">1310 nm</div>
-                        <div class="bg-light p-2 rounded text-center">
-                            <div class="mb-1"><?= number_format($latest1310['deviation_db'], 3) ?> dB</div>
-                            <div class="bg-secondary text-white p-1 rounded" style="width: <?= min(100, ($latest1310['deviation_db']/$max_dev)*100) ?>%; height: 20px; margin: 0 auto;"></div>
-                            <div class="mt-1">
-                                <?php if ($latest1310['result'] === 'aprobado'): ?>
-                                    <span class="badge bg-success">Aprobado</span>
-                                <?php else: ?>
-                                    <span class="badge bg-danger">Fuera</span>
-                                <?php endif; ?>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 bg-dark text-light border-secondary">
+                            <div class="card-header p-2">1310 nm</div>
+                            <div class="card-body d-flex flex-column align-items-center justify-content-center">
+                                <div class="fs-4 fw-bold"><?= number_format($latest1310['deviation_db'], 3) ?> dB</div>
+                                <div class="progress w-100 my-2" style="height: 8px;">
+                                    <div class="progress-bar <?= $latest1310['result'] === 'aprobado' ? 'bg-success' : 'bg-danger' ?>"
+                                         role="progressbar"
+                                         style="width: <?= min(100, ($latest1310['deviation_db']/$max_dev)*100) ?>%;"
+                                         aria-valuenow="<?= $latest1310['deviation_db'] ?>"
+                                         aria-valuemin="0"
+                                         aria-valuemax="<?= $max_dev ?>">
+                                    </div>
+                                </div>
+                                <span class="badge <?= $latest1310['result'] === 'aprobado' ? 'bg-success' : 'bg-danger' ?> mt-1">
+                                    <?= $latest1310['result'] === 'aprobado' ? 'Aprobado' : 'Fuera' ?>
+                                </span>
                             </div>
                         </div>
                     </div>
                     <?php endif; ?>
 
                     <?php if ($latest1550): ?>
-                    <div class="col-md-6 mb-3">
-                        <div class="text-center small">1550 nm</div>
-                        <div class="bg-light p-2 rounded text-center">
-                            <div class="mb-1"><?= number_format($latest1550['deviation_db'], 3) ?> dB</div>
-                            <div class="bg-secondary text-white p-1 rounded" style="width: <?= min(100, ($latest1550['deviation_db']/$max_dev)*100) ?>%; height: 20px; margin: 0 auto;"></div>
-                            <div class="mt-1">
-                                <?php if ($latest1550['result'] === 'aprobado'): ?>
-                                    <span class="badge bg-success">Aprobado</span>
-                                <?php else: ?>
-                                    <span class="badge bg-danger">Fuera</span>
-                                <?php endif; ?>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 bg-dark text-light border-secondary">
+                            <div class="card-header p-2">1550 nm</div>
+                            <div class="card-body d-flex flex-column align-items-center justify-content-center">
+                                <div class="fs-4 fw-bold"><?= number_format($latest1550['deviation_db'], 3) ?> dB</div>
+                                <div class="progress w-100 my-2" style="height: 8px;">
+                                    <div class="progress-bar <?= $latest1550['result'] === 'aprobado' ? 'bg-success' : 'bg-danger' ?>"
+                                         role="progressbar"
+                                         style="width: <?= min(100, ($latest1550['deviation_db']/$max_dev)*100) ?>%;"
+                                         aria-valuenow="<?= $latest1550['deviation_db'] ?>"
+                                         aria-valuemin="0"
+                                         aria-valuemax="<?= $max_dev ?>">
+                                    </div>
+                                </div>
+                                <span class="badge <?= $latest1550['result'] === 'aprobado' ? 'bg-success' : 'bg-danger' ?> mt-1">
+                                    <?= $latest1550['result'] === 'aprobado' ? 'Aprobado' : 'Fuera' ?>
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -83,8 +95,8 @@ $records = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         <!-- Tabla detallada -->
         <div class="table-responsive">
-            <table class="table table-bordered table-striped">
-                <thead>
+            <table class="table table-bordered table-striped table-dark">
+                <thead class="table-secondary">
                     <tr>
                         <th>Fecha</th>
                         <th>Slot</th>
@@ -122,8 +134,8 @@ $records = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
 
         <div class="mt-3">
-            <a href="linpu_add.php" class="btn btn-success">Nuevo registro</a>
-            <a href="linpu_admin.php" class="btn btn-secondary">Volver al listado</a>
+            <a href="linpu_add.php" class="btn btn-success"><i class="fa fa-plus me-1"></i> Nuevo registro</a>
+            <a href="linpu_admin.php" class="btn btn-secondary"><i class="fa fa-arrow-left me-1"></i> Volver al listado</a>
         </div>
     <?php endif; ?>
 </div>
