@@ -141,20 +141,24 @@ table {
     width: 100%;
     border-collapse: collapse;
     margin: 20px 0;
-    color: #ffffff; 
+    color: #ffffff;
 }
 
 /* Bordes y texto */
-th, td {
-    border: 1px solid #555;      /* Bordes más claros */
+th,
+td {
+    border: 1px solid #555;
+    /* Bordes más claros */
     padding: 10px;
     text-align: left;
-    color: #f8f9fa;              /* Texto aún más claro */
+    color: #f8f9fa;
+    /* Texto aún más claro */
 }
 
 /* Encabezados oscuros y negrita */
 th {
-    background-color: #1f1f1f;   /* Más oscuro que el resto */
+    background-color: #1f1f1f;
+    /* Más oscuro que el resto */
     cursor: pointer;
     transition: background-color 0.3s;
     font-weight: 600;
@@ -169,6 +173,7 @@ th:hover {
 tr:nth-child(odd) {
     background-color: #2e2e2e;
 }
+
 tr:nth-child(even) {
     background-color: #242424;
 }
@@ -179,12 +184,123 @@ tr:hover {
 }
 
 /* .table-striped en caso de usar esa clase */
-.table-striped tbody tr:nth-of-type(odd)  { background-color: #2e2e2e; }
-.table-striped tbody tr:nth-of-type(even) { background-color: #242424; }
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: #2e2e2e;
+}
+
+.table-striped tbody tr:nth-of-type(even) {
+    background-color: #242424;
+}
 
 /* Opcional: leyendas de Chart.js */
 .chartjs-render-monitor,
 .chartjs-legend,
 .legend-label {
     color: #f8f9fa !important;
+}
+
+/* -------------------
+   Estilos de Impresión (PDF)
+   ------------------- */
+@media print {
+    body {
+        background-color: white !important;
+        color: black !important;
+    }
+
+    nav,
+    .dt-toolbar,
+    .dt-pager,
+    .btn,
+    .btn-add,
+    .input-group,
+    input,
+    select,
+    .hero,
+    .modal,
+    footer,
+    .th-sort .sort-ind,
+    .dropdown,
+    small.text-secondary,
+    .btn-close {
+        display: none !important;
+    }
+
+    .container {
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        background-color: transparent !important;
+    }
+
+    .card {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        background-color: transparent !important;
+    }
+
+    /* Ensure all rows are shown */
+    tr[style*="display: none"] {
+        display: table-row !important;
+    }
+
+    .table-scroll {
+        overflow: visible !important;
+        max-height: none !important;
+    }
+
+    table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        color: black !important;
+    }
+
+    th,
+    td {
+        border: 1px solid #ccc !important;
+        color: black !important;
+        padding: 4px 6px !important;
+        font-size: 9pt !important;
+        /* Smaller font for printing */
+    }
+
+    th {
+        background-color: #eee !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* Hide Foto (2), Documento (11), and Acciones (13 - Admin only) columns for print */
+    table th:nth-child(2),
+    table td:nth-child(2),
+    table th:nth-child(11),
+    table td:nth-child(11),
+    table th:nth-child(13),
+    table td:nth-child(13) {
+        display: none !important;
+    }
+
+    img.img-thumb {
+        display: none !important;
+    }
+
+    /* Badges as simple text boxes */
+    .badge {
+        color: black !important;
+        background: transparent !important;
+        border: 1px solid #000;
+        padding: 1px 4px;
+        -webkit-print-color-adjust: exact;
+    }
+
+    .badge-cal {
+        border-color: green;
+    }
+
+    .badge-ven {
+        border-color: red;
+    }
 }

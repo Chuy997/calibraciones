@@ -35,7 +35,10 @@ $rows = pdo()->query($sql)->fetchAll();
 
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
   <h1 class="h4 m-0">Golden – Inventario</h1>
-  <a class="btn btn-success" href="golden_add.php"><i class="fa fa-plus me-1"></i> Nuevo</a>
+  <div class="d-flex gap-2">
+    <a class="btn btn-primary" href="golden_audit.php"><i class="fa fa-clipboard-check me-1"></i> Auditar</a>
+    <a class="btn btn-success" href="golden_add.php"><i class="fa fa-plus me-1"></i> Nuevo</a>
+  </div>
 </div>
 
 <div class="card p-3 table-density-comfort dt-container">
@@ -75,6 +78,23 @@ $rows = pdo()->query($sql)->fetchAll();
     </div>
 
     <div class="ms-auto d-flex gap-2">
+      <div class="dropdown">
+        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="fa fa-download"></i> Exportar
+        </button>
+        <ul class="dropdown-menu dropdown-menu-dark p-2">
+          <li>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="golden_export.php">
+              <i class="fa fa-file-excel text-success"></i> <span>Excel (CSV)</span>
+            </a>
+          </li>
+          <li>
+            <button class="dropdown-item d-flex align-items-center gap-2" onclick="window.print()">
+              <i class="fa fa-print text-white"></i> <span>Imprimir / PDF</span>
+            </button>
+          </li>
+        </ul>
+      </div>
       <select class="form-select dt-filter" data-col="9" style="max-width:220px;">
         <option value="">Estado: todos</option>
         <option>Activo</option>

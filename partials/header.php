@@ -83,6 +83,11 @@ function active(string $file): string {
                 </a>
               </li>
               <li>
+                <a class="dropdown-item <?= active('golden_audit.php') ?>" href="golden_audit.php">
+                  <i class="fa fa-clipboard-check me-2"></i>Auditoría
+                </a>
+              </li>
+              <li>
                 <a class="dropdown-item <?= active('golden_add.php') ?>" href="golden_add.php">
                   <i class="fa fa-plus me-2"></i>Nuevo
                 </a>
