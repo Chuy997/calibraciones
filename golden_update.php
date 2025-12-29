@@ -252,10 +252,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <div class="row justify-content-center">
   <div class="col-12 col-lg-8 col-xl-7">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <h1 class="h4 m-0">Editar material Golden</h1>
-      <a href="golden_admin.php" class="btn btn-outline-secondary btn-sm">
-        <i class="fa fa-arrow-left me-1"></i> Inventario
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h1 class="h4 m-0 fw-bold">✏️ Editar Material</h1>
+      <a href="golden_admin.php" class="btn btn-outline-secondary">
+        <i class="fa fa-arrow-left me-1"></i> Volver
       </a>
     </div>
 
@@ -311,13 +311,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <input type="text" id="location" name="location" class="form-control" value="<?= h($values['location']) ?>" required <?= $item['Status']==='Scrap'?'disabled':'' ?>>
         </div>
 
-        <div class="col-md-4">
+        <div class="col-12 col-md-4">
           <label for="department" class="form-label">Departamento *</label>
-          <input type="text" id="department" name="department" class="form-control" value="<?= h($values['department']) ?>" required <?= $item['Status']==='Scrap'?'disabled':'' ?>>
+          <input type="text" id="department" name="department" class="form-control form-control-lg" value="<?= h($values['department']) ?>" required <?= $item['Status']==='Scrap'?'disabled':'' ?>>
         </div>
-        <div class="col-md-4">
+        <div class="col-12 col-md-4">
           <label for="owner" class="form-label">Responsable *</label>
-          <input type="text" id="owner" name="owner" class="form-control" value="<?= h($values['owner']) ?>" required <?= $item['Status']==='Scrap'?'disabled':'' ?>>
+          <input type="text" id="owner" name="owner" class="form-control form-control-lg" value="<?= h($values['owner']) ?>" required <?= $item['Status']==='Scrap'?'disabled':'' ?>>
         </div>
 
         <div class="col-sm-6">
@@ -336,16 +336,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <!-- FOTO -->
         <div class="col-md-6">
           <label class="form-label d-flex align-items-center justify-content-between">
-            <span>Foto del material</span>
+            <span class="fw-bold"><i class="fa fa-camera me-1"></i> Foto del material</span>
             <?php if ($currPicture): ?>
               <a href="#" class="small text-decoration-none" data-bs-toggle="modal" data-bs-target="#imagePreviewModal">
                 <i class="fa fa-image me-1"></i>Ver actual
               </a>
             <?php endif; ?>
           </label>
-          <input type="file" id="picture" name="picture" accept="image/*" capture="environment" class="form-control" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
-          <div class="mt-2 d-none" id="imgPreviewBox">
-            <img id="imgPreview" src="" alt="preview" class="img-fluid rounded" style="max-height:320px;border:1px solid #333;">
+          <!-- Removed capture="environment" to allow gallery selection -->
+          <input type="file" id="picture" name="picture" accept="image/*" class="form-control form-control-lg" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
+          <div class="form-text text-muted small">
+             <i class="fa fa-info-circle"></i> Se comprimirá automáticamente si es muy grande.
+          </div>
+          <div class="mt-3 d-none text-center bg-dark rounded p-2" id="imgPreviewBox">
+            <img id="imgPreview" src="" alt="preview" class="img-fluid rounded" style="max-height:300px;">
+            <div class="text-white small mt-1" id="compressionInfo"></div>
           </div>
         </div>
 
@@ -367,9 +372,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
 
       <div class="mt-4 d-flex gap-2">
-        <a href="golden_admin.php" class="btn btn-outline-secondary">Cancelar</a>
-        <button type="submit" class="btn btn-primary" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
-          <i class="fa fa-save me-2"></i> Guardar cambios
+        <a href="golden_admin.php" class="btn btn-outline-secondary btn-lg flex-fill">Cancelar</a>
+        <button type="submit" class="btn btn-primary btn-lg flex-fill" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
+          <i class="fa fa-save me-2"></i> Guardar
         </button>
       </div>
     </form>
@@ -393,21 +398,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <script>
 // Vista previa de imagen nueva
+// CLIENT-SIDE COMPRESSION & PREVIEW
 const pictureInput = document.getElementById('picture');
 if (pictureInput) {
-  pictureInput.addEventListener('change', () => {
+  pictureInput.addEventListener('change', async () => {
     const file = pictureInput.files?.[0];
     const box  = document.getElementById('imgPreviewBox');
     const img  = document.getElementById('imgPreview');
-    if (file) {
-      img.src = URL.createObjectURL(file);
-      box.classList.remove('d-none');
-    } else {
-      img.src = '';
-      box.classList.add('d-none');
+    const info = document.getElementById('compressionInfo');
+
+    if (!file) {
+        img.src = '';
+        box.classList.add('d-none');
+        return;
+    }
+
+    // Show preview immediately for UX
+    box.classList.remove('d-none');
+    img.src = URL.createObjectURL(file);
+    info.textContent = `Original: ${(file.size/1024/1024).toFixed(2)} MB`;
+
+    // Only compress if > 1MB or if it's HEIC (though browser might convert HEIC to PNG on read, safe to process)
+    if (file.size > 1024 * 1024 || file.type === 'image/heic' || file.type === 'image/heif') {
+        info.textContent += " ⏳ Optimizando...";
+        try {
+            const compressedBlob = await compressImage(file);
+            // Replace file in input
+            const dt = new DataTransfer();
+            const newFile = new File([compressedBlob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", { type: "image/jpeg" });
+            dt.items.add(newFile);
+            pictureInput.files = dt.files;
+            
+            // Update preview/info
+            img.src = URL.createObjectURL(compressedBlob);
+            info.textContent = `Optimizado: ${(compressedBlob.size/1024/1024).toFixed(2)} MB (Listo para subir)`;
+            
+        } catch (e) {
+            console.error("Compression failed", e);
+            info.textContent += " ❌ Error al optimizar (se intentará subir original)";
+        }
     }
   });
 }
+
+function compressImage(file) {
+    return new Promise((resolve, reject) => {
+        const maxWidth = 1200;
+        const maxHeight = 1200;
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = event => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                let width = img.width;
+                let height = img.height;
+                
+                if (width > maxWidth || height > maxHeight) {
+                    if (width > height) {
+                        height = Math.round(height * (maxWidth / width));
+                        width = maxWidth;
+                    } else {
+                        width = Math.round(width * (maxHeight / height));
+                        height = maxHeight;
+                    }
+                }
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                canvas.toBlob(blob => {
+                    resolve(blob);
+                }, 'image/jpeg', 0.8); // 80% quality JPG
+            };
+            img.onerror = err => reject(err);
+        };
+        reader.onerror = err => reject(err);
+    });
+}
+
 
 // Vista previa de PDF nuevo
 const pdfInput = document.getElementById('document');

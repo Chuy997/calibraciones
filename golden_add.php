@@ -270,7 +270,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <!-- Descripción -->
         <div class="col-12">
           <label for="description" class="form-label">Descripción<span class="text-danger">*</span></label>
-          <input type="text" class="form-control" id="description" name="description" value="<?= h($values['description']) ?>" required placeholder="Nombre del material">
+          <input type="text" class="form-control form-control-lg" id="description" name="description" value="<?= h($values['description']) ?>" required placeholder="Nombre del material">
         </div>
 
         <!-- Marca / Modelo / Serie -->
@@ -293,18 +293,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <input type="text" class="form-control" id="pedimento" name="pedimento" value="<?= h($values['pedimento']) ?>" placeholder="Ej. 21 48 1234 0001234">
         </div>
 
-        <!-- Ubicación / Depto / Responsable -->
-        <div class="col-md-6">
+        <div class="col-12 col-md-6">
           <label for="location" class="form-label">Ubicación<span class="text-danger">*</span></label>
-          <input type="text" class="form-control" id="location" name="location" value="<?= h($values['location']) ?>" required placeholder="Ej. Línea 3 / Almacén">
+          <input type="text" class="form-control form-control-lg" id="location" name="location" value="<?= h($values['location']) ?>" required placeholder="Ej. Línea 3 / Almacén">
         </div>
-        <div class="col-md-4">
+        <div class="col-12 col-md-4">
           <label for="department" class="form-label">Departamento<span class="text-danger">*</span></label>
-          <input type="text" class="form-control" id="department" name="department" value="<?= h($values['department']) ?>" required placeholder="Testing / Producción">
+          <input type="text" class="form-control form-control-lg" id="department" name="department" value="<?= h($values['department']) ?>" required placeholder="Testing / Producción">
         </div>
-        <div class="col-md-4">
+        <div class="col-12 col-md-4">
           <label for="owner" class="form-label">Responsable<span class="text-danger">*</span></label>
-          <input type="text" class="form-control" id="owner" name="owner" value="<?= h($values['owner']) ?>" required placeholder="Nombre / Puesto">
+          <input type="text" class="form-control form-control-lg" id="owner" name="owner" value="<?= h($values['owner']) ?>" required placeholder="Nombre / Puesto">
         </div>
 
         <!-- Estado -->
@@ -324,19 +323,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
 
         <!-- FOTO (CÁMARA MÓVIL) -->
-        <div class="col-md-6">
-          <label class="form-label">Foto del material</label>
+        <div class="col-12 col-md-6">
+          <label class="form-label fw-bold"><i class="fa fa-camera me-1"></i> Foto del material</label>
           <input
             type="file"
             id="picture"
             name="picture"
             accept="image/*"
-            capture="environment"
-            class="form-control"
+            class="form-control form-control-lg"
           >
-          <div class="form-text">En móviles, se abrirá la cámara tras seleccionar “Tomar foto”.</div>
-          <div class="mt-2 d-none" id="imgPreviewBox">
-            <img id="imgPreview" src="" alt="preview" class="img-fluid rounded" style="max-height:320px;border:1px solid #333;">
+          <div class="form-text text-muted small"><i class="fa fa-info-circle"></i> Se comprimirá automáticamente si es muy grande.</div>
+          <div class="mt-2 d-none text-center bg-dark rounded p-2" id="imgPreviewBox">
+            <img id="imgPreview" src="" alt="preview" class="img-fluid rounded" style="max-height:300px;">
+             <div class="text-white small mt-1" id="compressionInfo"></div>
           </div>
         </div>
 
@@ -351,8 +350,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
 
       <div class="mt-4 d-flex gap-2">
-        <a href="golden_admin.php" class="btn btn-outline-secondary">Cancelar</a>
-        <button type="submit" class="btn btn-success">
+        <a href="golden_admin.php" class="btn btn-outline-secondary btn-lg flex-fill">Cancelar</a>
+        <button type="submit" class="btn btn-success btn-lg flex-fill">
           <i class="fa fa-save me-2"></i>Guardar
         </button>
       </div>
@@ -361,22 +360,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script>
-// Vista previa de imagen (móvil/escritorio)
+// Vista previa de imagen (móvil/escritorio) + Compresión
 const pictureInput = document.getElementById('picture');
 if (pictureInput) {
-  pictureInput.addEventListener('change', () => {
+  pictureInput.addEventListener('change', async () => {
     const file = pictureInput.files?.[0];
     const box  = document.getElementById('imgPreviewBox');
     const img  = document.getElementById('imgPreview');
-    if (file) {
-      const url = URL.createObjectURL(file);
-      img.src = url;
-      box.classList.remove('d-none');
-    } else {
+    const info = document.getElementById('compressionInfo');
+
+    if (!file) {
       img.src = '';
       box.classList.add('d-none');
+      return;
+    }
+
+     // UX Immediate preview
+    const url = URL.createObjectURL(file);
+    img.src = url;
+    box.classList.remove('d-none');
+    
+    if (info) info.textContent = `Original: ${(file.size/1024/1024).toFixed(2)} MB`;
+
+     // Only compress if > 1MB or if it's HEIC
+    if (file.size > 1024 * 1024 || file.type === 'image/heic' || file.type === 'image/heif') {
+        if(info) info.textContent += " ⏳ Optimizando...";
+        try {
+            const compressedBlob = await compressImage(file);
+            // Replace file in input
+            const dt = new DataTransfer();
+            const newFile = new File([compressedBlob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", { type: "image/jpeg" });
+            dt.items.add(newFile);
+            pictureInput.files = dt.files;
+            
+            // Update preview/info
+            img.src = URL.createObjectURL(compressedBlob);
+            if(info) info.textContent = `Optimizado: ${(compressedBlob.size/1024/1024).toFixed(2)} MB (Listo para subir)`;
+            
+        } catch (e) {
+            console.error("Compression failed", e);
+            if(info) info.textContent += " ❌ Error al optimizar";
+        }
     }
   });
+}
+
+function compressImage(file) {
+    return new Promise((resolve, reject) => {
+        const maxWidth = 1200;
+        const maxHeight = 1200;
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = event => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                let width = img.width;
+                let height = img.height;
+                
+                if (width > maxWidth || height > maxHeight) {
+                    if (width > height) {
+                        height = Math.round(height * (maxWidth / width));
+                        width = maxWidth;
+                    } else {
+                        width = Math.round(width * (maxHeight / height));
+                        height = maxHeight;
+                    }
+                }
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                canvas.toBlob(blob => {
+                    resolve(blob);
+                }, 'image/jpeg', 0.8); 
+            };
+            img.onerror = err => reject(err);
+        };
+        reader.onerror = err => reject(err);
+    });
 }
 
 // Vista previa de PDF (si el navegador lo permite)
