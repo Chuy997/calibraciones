@@ -312,56 +312,68 @@ include __DIR__.'/partials/header.php';
         </a>
     </div>
 
-    <div class="card border-0 shadow-sm">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th class="ps-4">ID</th>
-                        <th>Estado</th>
-                        <th>Fecha</th>
-                        <th>Auditor</th>
-                        <th class="text-center">Items</th>
-                        <th class="text-center">Minuta</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                <?php if(!$audits): ?>
-                    <tr><td colspan="7" class="text-center py-5 text-muted">No hay registros.</td></tr>
-                <?php else: foreach($audits as $row): 
-                    $isOpen = $row['Status'] === 'Open';
-                    $date = $row['AuditDate'] ? date('d/M H:i', strtotime($row['AuditDate'])) : '-';
-                ?>
-                    <tr class="<?= $isOpen ? 'bg-primary bg-opacity-10' : '' ?>">
-                        <td class="ps-4 fw-bold">#<?= $row['AuditID'] ?></td>
-                        <td>
-                            <span class="badge <?= $isOpen ? 'bg-primary' : 'bg-secondary' ?>">
+    <div class="row g-4">
+        <?php if(!$audits): ?>
+            <div class="col-12 text-center py-5 text-muted">
+                <i class="fa fa-folder-open fa-3x mb-3 text-light"></i>
+                <p>No hay auditorías registradas.</p>
+            </div>
+        <?php else: foreach($audits as $row): 
+            $isOpen = $row['Status'] === 'Open';
+            $date = $row['AuditDate'] ? date('d/M H:i', strtotime($row['AuditDate'])) : '-';
+        ?>
+            <div class="col-12 col-md-6 col-lg-4 col-xl-3">
+                <div class="card h-100 shadow-sm border-0 <?= $isOpen ? 'border-primary border-2 border-start' : 'border-start border-4 border-secondary' ?>" style="transition: transform 0.2s;">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="card-title fw-bold mb-0 text-dark">#<?= $row['AuditID'] ?></h5>
+                            <span class="badge rounded-pill <?= $isOpen ? 'bg-primary' : 'bg-secondary' ?>">
                                 <?= $isOpen ? 'En Progreso' : 'Cerrada' ?>
                             </span>
-                        </td>
-                        <td><?= $date ?></td>
-                        <td><?= h($row['Auditor']) ?></td>
-                        <td class="text-center"><?= $row['TotalItems'] ?></td>
-                        <td class="text-center">
-                            <?php if($row['TotalMissing'] > 0): ?>
-                                <span class="badge bg-danger"><?= $row['TotalMissing'] ?> Faltantes</span>
-                            <?php else: ?>
-                                <i class="fa fa-check text-success"></i> Note
-                            <?php endif; ?>
-                        </td>
-                        <td class="text-end pe-4">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="d-flex align-items-center text-muted small mb-1">
+                                <i class="fa fa-calendar me-2" style="width:16px"></i>
+                                <span><?= $date ?></span>
+                            </div>
+                            <div class="d-flex align-items-center text-muted small">
+                                <i class="fa fa-user me-2" style="width:16px"></i>
+                                <span><?= h($row['Auditor']) ?></span>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center bg-secondary bg-opacity-10 rounded p-2 mb-3">
+                            <div class="text-center px-2">
+                                <small class="d-block text-muted text-uppercase" style="font-size: 0.7rem;">Items</small>
+                                <span class="fw-bold"><?= $row['TotalItems'] ?></span>
+                            </div>
+                            <div class="vr"></div>
+                            <div class="text-center px-2">
+                                <small class="d-block text-muted text-uppercase" style="font-size: 0.7rem;">Minuta</small>
+                                <?php if($row['TotalMissing'] > 0): ?>
+                                    <span class="text-danger fw-bold"><?= $row['TotalMissing'] ?> Falt.</span>
+                                <?php else: ?>
+                                    <span class="text-success fw-bold"><i class="fa fa-check"></i> Clean</span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <div class="d-grid">
                             <?php if ($isOpen): ?>
-                                <a href="golden_audit.php?action=edit&id=<?= $row['AuditID'] ?>" class="btn btn-sm btn-primary fw-bold">Continuar</a>
+                                <a href="golden_audit.php?action=edit&id=<?= $row['AuditID'] ?>" class="btn btn-primary fw-bold">
+                                    <i class="fa fa-arrow-right me-1"></i> Continuar
+                                </a>
                             <?php else: ?>
-                                <a href="golden_report_print.php?id=<?= $row['AuditID'] ?>" target="_blank" class="btn btn-sm btn-outline-dark">Reporte</a>
+                                <a href="golden_report_print.php?id=<?= $row['AuditID'] ?>" target="_blank" class="btn btn-outline-dark btn-sm">
+                                    <i class="fa fa-file-pdf me-1"></i> Ver Reporte
+                                </a>
                             <?php endif; ?>
-                        </td>
-                    </tr>
-                <?php endforeach; endif; ?>
-                </tbody>
-            </table>
-        </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <?php endforeach; endif; ?>
     </div>
 
 <!-- ================= EDIT VIEW ================= -->
@@ -427,8 +439,8 @@ include __DIR__.'/partials/header.php';
 
              <!-- ITEMS LOOP -->
               <div class="col-12">
-                  <!-- ================= MOBILE VIEW LOOP (CARDS) ================= -->
-                  <div class="d-md-none">
+                  <!-- ================= UNIFIED RESPONSIVE GRID (Cards for All) ================= -->
+                  <div class="row g-4">
                       <?php foreach ($inv as $item): 
                             $gid = $item['ID'];
                             $s   = $saved[$gid] ?? null;
@@ -448,66 +460,86 @@ include __DIR__.'/partials/header.php';
                             $canCheck = $isNewPic || $isExempt;  
                             
                             // Row Style Logic
-                            $rowClass = '';
-                            if(!$canCheck) $rowClass = 'border-danger';
-                            elseif($isNewPic) $rowClass = 'border-success';
+                            $borderClass = '';
+                            if(!$canCheck) $borderClass = 'border-danger';
+                            elseif($isNewPic) $borderClass = 'border-success';
                       ?>
-                      <div class="mobile-card-row <?= $rowClass ?>">
-                          <div class="m-card-grid">
-                              <div class="m-card-img-area">
+                      <div class="col-12 col-md-6 col-lg-4 col-xl-3 d-flex align-items-stretch">
+                          <div class="card w-100 shadow-sm <?= $borderClass ?>" style="transition: transform 0.2s;">
+                              <div class="position-relative bg-light text-center" style="min-height: 200px;">
+                                  <!-- Image Area -->
                                   <?php if($pic): ?>
-                                    <img src="<?= h($pic) ?>" class="m-card-img item-thumb" id="thumb-m-<?= $gid ?>" data-src="<?= h($pic) ?>">
+                                    <img src="<?= h($pic) ?>" class="card-img-top item-thumb" id="thumb-m-<?= $gid ?>" style="height: 200px; object-fit: cover; width: 100%;">
                                   <?php else: ?>
-                                    <div class="m-card-img bg-light d-flex align-items-center justify-content-center text-secondary"><i class="fa fa-camera fa-lg"></i></div>
+                                    <div class="d-flex align-items-center justify-content-center text-secondary" style="height: 200px; width: 100%;" id="thumb-m-<?= $gid ?>">
+                                        <i class="fa fa-camera fa-2x opacity-50"></i>
+                                    </div>
                                   <?php endif; ?>
                                   
-                                  <label class="btn btn-sm btn-outline-primary btn-camera-mobile mt-2">
-                                      <i class="fa fa-camera"></i>
+                                  <!-- Camera Floater -->
+                                  <label class="btn btn-primary btn-sm position-absolute rounded-circle shadow btn-camera-mobile" style="bottom: -15px; right: 15px; width: 40px; height: 40px; padding: 0; display:flex; align-items:center; justify-content:center;">
+                                      <i class="fa fa-camera text-white"></i>
+                                      <!-- Keeping name 'picture_mobile' as unified input name -->
                                       <input type="file" class="d-none start-cam" data-gid="<?= $gid ?>" accept="image/*" name="items[<?= $gid ?>][picture_mobile]">
                                   </label>
-                              </div>
-                              <div class="m-card-info">
-                                  <div class="d-flex justify-content-between">
-                                      <div class="m-card-title"><?= h($item['Description']) ?></div>
-                                      <span class="badge bg-light text-dark border"><?= $gid ?></span>
-                                  </div>
-                                  <div class="m-card-subtitle"><?= h($item['Brand']) ?> <?= h($item['Model']) ?> <br> <span class="font-monospace"><?= h($item['SerialNumber']) ?></span></div>
-                                  
-                                  <?php if(!$canCheck): ?>
-                                      <div class="alert alert-danger py-1 px-2 small mb-0 d-inline-block no-pic-alert-<?= $gid ?>">
-                                          <i class="fa fa-camera"></i> <b>FOTO NUEVA REQUERIDA</b>
-                                      </div>
-                                  <?php elseif($isNewPic): ?>
-                                      <div class="text-success small fw-bold mt-1">
-                                          <i class="fa fa-check-circle"></i> FOTO ACTUALIZADA
-                                      </div>
+
+                                  <!-- New Pic Badge -->
+                                  <?php if($isNewPic): ?>
+                                      <span class="position-absolute top-0 end-0 m-2 badge rounded-pill bg-success shadow-sm">
+                                          <i class="fa fa-check-circle me-1"></i> Nueva
+                                      </span>
                                   <?php endif; ?>
                               </div>
-                              <div class="m-card-controls">
-                                  <div class="m-control-group m-phys-toggle">
-                                      <span class="fw-bold <?= $checked?'text-success':'text-secondary' ?>">
-                                          <?= $checked ? 'VERIFICADO' : 'NO VERIFICADO' ?>
-                                      </span>
+
+                              <div class="card-body mt-2 pt-3">
+                                  <div class="d-flex justify-content-between align-items-start mb-2">
+                                      <div style="max-width: 80%;">
+                                          <h6 class="card-title mb-0 fw-bold text-truncate" title="<?= h($item['Description']) ?>"><?= h($item['Description']) ?></h6>
+                                          <div class="small text-muted text-truncate"><?= h($item['Brand']) ?> <?= h($item['Model']) ?></div>
+                                      </div>
+                                      <span class="badge bg-light text-dark border"><?= $gid ?></span>
+                                  </div>
+
+                                  <!-- Serial -->
+                                  <div class="mb-3 small font-monospace text-muted bg-secondary bg-opacity-10 p-1 rounded text-center text-truncate">
+                                      SN: <?= h($item['SerialNumber']) ?>
+                                  </div>
+
+                                  <!-- Alerts -->
+                                  <?php if(!$canCheck): ?>
+                                      <div class="alert alert-danger py-1 px-2 small mb-3 no-pic-alert-<?= $gid ?>">
+                                          <i class="fa fa-exclamation-circle"></i> Foto requerida para verificar
+                                      </div>
+                                  <?php endif; ?>
+
+                                  <!-- Controls -->
+                                  <div class="d-flex align-items-center justify-content-between mb-3 bg-secondary bg-opacity-10 p-2 rounded">
+                                      <label class="small fw-bold mb-0">Físico:</label>
                                       <div class="form-check form-switch m-0">
-                                          <input class="form-check-input phys-chk-<?= $gid ?>" type="checkbox" role="switch" name="items[<?= $gid ?>][physical]" value="1" <?= $checked?'checked':'' ?> <?= !$canCheck?'disabled':'' ?>>
+                                          <input class="form-check-input phys-chk-<?= $gid ?>" type="checkbox" role="switch" name="items[<?= $gid ?>][physical]" value="1" <?= $checked?'checked':'' ?> <?= !$canCheck?'disabled':'' ?> style="width: 2.5em; height: 1.5em;">
                                       </div>
                                   </div>
-                                  <div class="m-control-group">
-                                      <label class="m-label">Ubicación</label>
-                                      <input type="text" class="form-control form-control-lg-mobile" name="items[<?= $gid ?>][location]" value="<?= h($loc) ?>" list="locsList">
+
+                                  <div class="mb-2">
+                                      <label class="small text-muted">Ubicación</label>
+                                      <input type="text" class="form-control form-control-sm" name="items[<?= $gid ?>][location]" value="<?= h($loc) ?>" list="locsList">
                                   </div>
-                                  <div class="m-control-group">
-                                      <label class="m-label">Estado</label>
-                                      <select class="form-select form-control-lg-mobile cond-sel" name="items[<?= $gid ?>][condition]">
-                                          <option value="Good" <?= $cond==='Good'?'selected':'' ?>>Buena</option>
-                                          <option value="Damage" <?= $cond==='Damage'?'selected':'' ?>>Dañada</option>
-                                          <option value="Missing" <?= $cond==='Missing'?'selected':'' ?> class="text-danger">Faltante</option>
-                                          <option value="Scrap" <?= $cond==='Scrap'?'selected':'' ?>>Scrap</option>
-                                      </select>
-                                  </div>
-                                  <div class="m-control-group">
-                                      <label class="m-label">Observaciones</label>
-                                      <input type="text" class="form-control form-control-lg-mobile" name="items[<?= $gid ?>][note_mobile]" value="<?= h($note) ?>" placeholder="Observaciones">
+
+                                  <div class="row g-2">
+                                      <div class="col-6">
+                                          <label class="small text-muted">Estado</label>
+                                          <select class="form-select form-select-sm cond-sel" name="items[<?= $gid ?>][condition]">
+                                              <option value="Good" <?= $cond==='Good'?'selected':'' ?>>Buena</option>
+                                              <option value="Damage" <?= $cond==='Damage'?'selected':'' ?>>Dañada</option>
+                                              <option value="Missing" <?= $cond==='Missing'?'selected':'' ?> class="text-danger fw-bold">Faltante</option>
+                                              <option value="Scrap" <?= $cond==='Scrap'?'selected':'' ?>>Scrap</option>
+                                          </select>
+                                      </div>
+                                      <div class="col-6">
+                                          <label class="small text-muted">Notas</label>
+                                          <!-- Using note_mobile as primary -->
+                                          <input type="text" class="form-control form-control-sm" name="items[<?= $gid ?>][note_mobile]" value="<?= h($note) ?>" placeholder="...">
+                                      </div>
                                   </div>
                               </div>
                           </div>
@@ -515,74 +547,7 @@ include __DIR__.'/partials/header.php';
                       <?php endforeach; ?>
                   </div>
 
-                  <!-- ================= DESKTOP VIEW LOOP (TABLE) ================= -->
-                  <div class="d-none d-md-block">
-                    <table class="table table-hover align-middle border bg-white">
-                        <thead class="table-light"><tr>
-                            <th width="80">Foto</th>
-                            <th>Descripción</th>
-                            <th>Ubicación</th>
-                            <th class="text-center">Físico</th>
-                            <th>Estado</th>
-                            <th>Notas</th>
-                        </tr></thead>
-                        <tbody>
-                        <?php foreach ($inv as $item): 
-                                $gid = $item['ID'];
-                                $s   = $saved[$gid] ?? null;
-                                $checked = $s ? ((int)$s['PhysicalCheck']===1) : false;
-                                $cond    = $s ? $s['ConditionCheck'] : 'Good'; // Default 'Good'
-                                $note    = $s ? $s['Notes'] : '';
-                                $loc     = $item['Location'];
-                                $pic     = $item['Picture'];
-
-                                $auditDate = $auditRow['AuditDate'] ?? date('Y-m-d H:i:s');
-                                $isNewPic  = false;
-                                if ($pic && preg_match('/_([0-9]{10})\./', $pic, $matches)) {
-                                    if ((int)$matches[1] >= strtotime($auditDate)) $isNewPic = true;
-                                }
-                                $isExempt = ($cond === 'Missing' || $cond === 'Scrap');
-                                $canCheck = $isNewPic || $isExempt; 
-                        ?>
-                          <tr>
-                            <td>
-                                <div class="position-relative" style="width: 50px;">
-                                    <img src="<?= $pic ? h($pic) : '' ?>" class="rounded shadow-sm <?= $pic?'':'d-none' ?>" style="width:50px;height:50px;object-fit:cover;" id="thumb-d-<?= $gid ?>">
-                                    <?php if($isNewPic): ?>
-                                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-success">
-                                            <i class="fa fa-check"></i>
-                                        </span>
-                                    <?php endif; ?>
-                                    <label class="btn btn-sm btn-light position-absolute bottom-0 end-0 p-0 border rounded-circle shadow-sm" style="width:24px;height:24px;">
-                                        <i class="fa fa-camera small"></i>
-                                        <input type="file" class="d-none start-cam" data-gid="<?= $gid ?>" accept="image/*" name="items[<?= $gid ?>][picture_desktop]">
-                                    </label>
-                                </div>
-                            </td>
-                            <td>
-                                <div class="fw-bold"><?= h($item['Description']) ?></div>
-                                <div class="small text-muted"><?= $gid ?> | <?= h($item['Model']) ?></div>
-                            </td>
-                            <td><input type="text" class="form-control form-control-sm" name="items[<?= $gid ?>][location]" value="<?= h($loc) ?>" list="locsList"></td>
-                            <td class="text-center">
-                                <div class="form-check form-switch d-flex justify-content-center">
-                                    <input class="form-check-input phys-chk-<?= $gid ?>" type="checkbox" name="items[<?= $gid ?>][physical]" value="1" <?= $checked?'checked':'' ?> <?= !$canCheck?'disabled':'' ?> title="<?= !$canCheck?'Foto Nueva Requerida':'' ?>">
-                                </div>
-                                <?php if(!$canCheck): ?><small class="text-danger no-pic-alert-<?= $gid ?>" style="font-size: 0.65rem;"><b>Foto Nueva Req.</b></small><?php endif; ?>
-                            </td>
-                            <td>
-                                <select class="form-select form-select-sm cond-sel" name="items[<?= $gid ?>][condition]">
-                                    <option value="Good" <?= $cond==='Good'?'selected':'' ?>>OK</option>
-                                    <option value="Damage" <?= $cond==='Damage'?'selected':'' ?>>Dañado</option>
-                                    <option value="Missing" <?= $cond==='Missing'?'selected':'' ?>>Faltante</option>
-                                </select>
-                            </td>
-                             <td><input type="text" class="form-control form-control-sm" name="items[<?= $gid ?>][note_desktop]" value="<?= h($note) ?>"></td>
-                          </tr>
-                        <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                  </div>
+                  <!-- DESKTOP VIEW REPLACED BY RESPONSIVE GRID ABOVE -->
         </div>
         
         <!-- Finish Modal -->
