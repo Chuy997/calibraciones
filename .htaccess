@@ -1,5 +1,4 @@
-# /var/www/html/calibraciones/.htaccess
-php_value upload_max_filesize 20M
-php_value post_max_size 25M
-php_value max_file_uploads 50
-php_value memory_limit 256M
+php_value upload_max_filesize 10M
+php_value post_max_size 12M
+php_value max_file_uploads 20
+php_value memory_limit 128M

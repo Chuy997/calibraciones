@@ -2,6 +2,11 @@
 // /var/www/html/calibraciones/golden_audit.php
 declare(strict_types=1);
 
+// CRITICAL: Increase upload limits for mobile camera photos
+ini_set('upload_max_filesize', '10M');
+ini_set('post_max_size', '12M');
+ini_set('max_file_uploads', '20');
+
 // Debugging
 ini_set('display_errors', '0'); // Prod mode: Hide errors from output
 ini_set('log_errors', '1');
@@ -45,6 +50,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     $items   = $_POST['items'] ?? [];
 
     if (!$auditId) die("ID Inválido");
+
+    // DEBUG: Comprehensive logging
+    $debugLog = "=== SAVE AUDIT DEBUG ===\n";
+    $debugLog .= "Timestamp: " . date('Y-m-d H:i:s') . "\n";
+    $debugLog .= "AuditID: $auditId\n\n";
+    
+    $debugLog .= "POST items keys: " . implode(', ', array_keys($items)) . "\n\n";
+    
+   $debugLog .= "FILES Structure:\n";
+    if (isset($_FILES['items'])) {
+        $debugLog .= "  - items exists\n";
+        if (isset($_FILES['items']['name'])) {
+            $debugLog .= "  - name keys: " . implode(', ', array_keys($_FILES['items']['name'])) . "\n";
+            foreach ($_FILES['items']['name'] as $gid => $fileData) {
+                if (is_array($fileData)) {
+                    $debugLog .= "    - Item $gid:\n";
+                    foreach ($fileData as $key => $fileName) {
+                        $error = $_FILES['items']['error'][$gid][$key] ?? 'N/A';
+                        $size = $_FILES['items']['size'][$gid][$key] ?? 0;
+                        $debugLog .= "      [$key] name=$fileName, error=$error, size=$size\n";
+                    }
+                }
+            }
+        }
+    } else {
+        $debugLog .= "  - NO FILES['items'] FOUND!\n";
+    }
+    
+    file_put_contents(__DIR__ . '/uploads/audit_save_debug.log', $debugLog . "\n\n", FILE_APPEND);
 
     // DEBUG: Log POST items
     file_put_contents(__DIR__ . '/uploads/audit_debug_post.log', print_r($_POST['items'] ?? [], true));
@@ -131,7 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 
 
         // Update Header
-        $sqlHead = "UPDATE golden_audits SET TotalItems=?, TotalMissing=?, TotalDamaged=?, Comments=?, Status=?, AuditDate=NOW() WHERE AuditID=?";
+        $sqlHead = "UPDATE golden_audits SET TotalItems=?, TotalMissing=?, TotalDamaged=?, Comments=?, Status=? WHERE AuditID=?";
         $pdo->prepare($sqlHead)->execute([$stats['Total'], $stats['Missing'], $stats['Damaged'], $comments, $status, $auditId]);
 
         // STRICT FINALIZATION CHECK
@@ -488,13 +522,16 @@ include __DIR__.'/partials/header.php';
                       <div class="col-12 col-md-6 col-lg-4 col-xl-3 d-flex align-items-stretch item-card-col" data-search="<?= h($searchStr) ?>" data-complete="<?= $isNewPic ? 'true' : 'false' ?>">
                           <div class="card w-100 shadow-sm <?= $borderClass ?>" style="transition: transform 0.2s;">
                               <div class="position-relative bg-light text-center" style="min-height: 200px;">
-                                  <!-- Image Area -->
-                                  <?php if($pic): ?>
-                                    <img src="<?= h($pic) ?>" class="card-img-top item-thumb" id="thumb-m-<?= $gid ?>" style="height: 200px; object-fit: cover; width: 100%;">
-                                  <?php else: ?>
-                                    <div class="d-flex align-items-center justify-content-center text-secondary" style="height: 200px; width: 100%;" id="thumb-m-<?= $gid ?>">
-                                        <i class="fa fa-camera fa-2x opacity-50"></i>
-                                    </div>
+                                  <!-- Image Area - Always img element for preview to work -->
+                                  <img src="<?= $pic ?: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%23f8f9fa%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%%22 y=%2250%%22 font-size=%2240%22 text-anchor=%22middle%22 fill=%22%23adb5bd%22%3E📷%3C/text%3E%3C/svg%3E' ?>" 
+                                       class="card-img-top item-thumb <?= $pic ? '' : 'd-none' ?>" 
+                                       id="thumb-m-<?= $gid ?>" 
+                                       style="height: 200px; object-fit: cover; width: 100%;">
+                                  
+                                  <?php if(!$pic): ?>
+                                  <div class="d-flex align-items-center justify-content-center text-secondary position-absolute top-0 start-0 w-100 h-100" style="pointer-events: none;">
+                                      <i class="fa fa-camera fa-2x opacity-50"></i>
+                                  </div>
                                   <?php endif; ?>
                                   
                                   <!-- Camera Floater -->
@@ -601,50 +638,63 @@ window.addEventListener('load', () => {
     // 1. Visual Feedback for Camera Input
     document.querySelectorAll('.start-cam').forEach(input => {
         input.addEventListener('change', (e) => {
-            const container = e.target.closest('.m-card-img-area') || e.target.closest('td');
-            const btnCam = container.querySelector('.btn-camera-mobile') || container.querySelector('.btn-camera-desktop');
+            console.log('📸 Camera input change event fired');
             
             if (e.target.files && e.target.files.length > 0) {
                 const file = e.target.files[0];
+                const gid = e.target.getAttribute('data-gid');
+                
+                console.log(`✅ File selected for ${gid}:`, file.name, `${(file.size/1024/1024).toFixed(2)}MB`);
 
-                // Change icon to checkmark
+                // Find button (it's the parent label)
+                const btnCam = e.target.closest('label.btn-camera-mobile');
                 if(btnCam) {
                     btnCam.classList.remove('btn-outline-primary');
                     btnCam.classList.add('btn-success');
                     const icon = btnCam.querySelector('i');
-                    if(icon) icon.className = 'fa fa-check';
+                    if(icon) icon.className = 'fa fa-check text-white';
+                    console.log('✓ Button updated to green checkmark');
                 }
                 
-                // Show preview
-                const gid = e.target.getAttribute('data-gid');
-                const reader = new FileReader();
-                reader.onload = (evt) => {
-                   const thumbs = document.querySelectorAll(`#thumb-m-${gid}, #thumb-d-${gid}`);
-                   thumbs.forEach(t => { 
-                       t.src = evt.target.result; 
-                       t.classList.remove('d-none'); 
-                   });
+                // Show preview - find img directly by ID
+                console.log(`🖼️ Starting preview for ${gid}...`);
+                const thumb = document.getElementById(`thumb-m-${gid}`);
+                
+                if (!thumb) {
+                    console.error(`❌ Could not find thumbnail element #thumb-m-${gid}`);
+                } else {
+                    console.log('Found thumbnail element:', thumb);
+                    
+                    const reader = new FileReader();
+                    reader.onload = (evt) => {
+                       console.log(`📷 FileReader loaded, updating preview`);
+                       thumb.src = evt.target.result; 
+                       thumb.classList.remove('d-none');
+                       console.log('✓ Preview updated successfully');
+                    };
+                    reader.onerror = (err) => {
+                        console.error('❌ FileReader error:', err);
+                    };
+                    reader.readAsDataURL(file);
                 }
-                reader.readAsDataURL(file);
 
-                // COMPRESS AND REPLACE (DataTransfer Pattern)
-                // Only compress if > 1MB
-                if (file.size > 1024 * 1024) {
-                    compressImage(file, 0.7, 1200).then(blob => {
-                        // Create new File from Blob
-                        const dt = new DataTransfer();
-                        const newFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", { type: "image/jpeg" });
-                        dt.items.add(newFile);
-                        
-                        // REPLACE input file
-                        e.target.files = dt.files;
-                        console.log("Compressed item " + gid + " to " + (blob.size/1024).toFixed(0) + "KB");
-                        
-                    }).catch(err => {
-                        console.error("Compression error:", err);
-                        // Fallback: Keep original file (might fail server limit)
-                    });
-                }
+                // COMPRESS to ensure upload succeeds (server limit is 2MB)
+                console.log(`🗜️ Starting compression for ${gid}...`);
+                compressImage(file, 0.7, 1200).then(blob => {
+                    console.log(`✓ Compression complete: ${(file.size/1024).toFixed(0)}KB → ${(blob.size/1024).toFixed(0)}KB`);
+                    
+                    // Replace file input with compressed version
+                    const dt = new DataTransfer();
+                    const newFile = new File([blob], 'photo_' + Date.now() + '.jpg', { type: 'image/jpeg' });
+                    dt.items.add(newFile);
+                    e.target.files = dt.files;
+                    console.log(`✓ File input replaced with compressed version for ${gid}`);
+                }).catch(err => {
+                    console.error(`❌ Compression error for ${gid}:`, err);
+                    alert("⚠️ Error al comprimir la foto. Intenta de nuevo.");
+                });
+            } else {
+                console.log('⚠️ No files selected');
             }
         });
     });
@@ -771,9 +821,6 @@ function cleanAndSubmit(setClosed = false) {
     if (count > 20) {
         alert("¡Atención! Estás intentando subir más de 20 fotos a la vez. El servidor solo procesará las primeras 20. Por favor guarda más seguido.");
     }
-    
-    // DEBUG: Verify count (Removed for Production)
-    // alert("Sistema: Detectadas " + count + " fotos para subir.");
 
     // 3. Set Status if needed
     if (setClosed) {
