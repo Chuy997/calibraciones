@@ -437,10 +437,28 @@ include __DIR__.'/partials/header.php';
                  </div>
              </div>
 
+             <!-- Filter Toolbar -->
+             <div class="col-12">
+                 <div class="card p-2 border-0 shadow-sm bg-secondary bg-opacity-10">
+                     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                         <div class="flex-grow-1">
+                             <div class="input-group">
+                                 <span class="input-group-text bg-transparent border-end-0"><i class="fa fa-search text-muted"></i></span>
+                                 <input type="text" id="filterInput" class="form-control border-start-0" placeholder="Buscar por Nombre, Modelo, Marca o SN...">
+                             </div>
+                         </div>
+                         <div class="form-check form-switch ms-2">
+                             <input class="form-check-input" type="checkbox" id="hideCompletedToggle">
+                             <label class="form-check-label fw-bold small text-muted" for="hideCompletedToggle">Ocultar Completados (Foto Nueva)</label>
+                         </div>
+                     </div>
+                 </div>
+             </div>
+
              <!-- ITEMS LOOP -->
               <div class="col-12">
                   <!-- ================= UNIFIED RESPONSIVE GRID (Cards for All) ================= -->
-                  <div class="row g-4">
+                  <div class="row g-4" id="itemsGrid">
                       <?php foreach ($inv as $item): 
                             $gid = $item['ID'];
                             $s   = $saved[$gid] ?? null;
@@ -463,8 +481,11 @@ include __DIR__.'/partials/header.php';
                             $borderClass = '';
                             if(!$canCheck) $borderClass = 'border-danger';
                             elseif($isNewPic) $borderClass = 'border-success';
+
+                            // Search Data
+                            $searchStr = strtolower($item['Description'] . ' ' . $item['Brand'] . ' ' . $item['Model'] . ' ' . $item['SerialNumber'] . ' ' . $gid);
                       ?>
-                      <div class="col-12 col-md-6 col-lg-4 col-xl-3 d-flex align-items-stretch">
+                      <div class="col-12 col-md-6 col-lg-4 col-xl-3 d-flex align-items-stretch item-card-col" data-search="<?= h($searchStr) ?>" data-complete="<?= $isNewPic ? 'true' : 'false' ?>">
                           <div class="card w-100 shadow-sm <?= $borderClass ?>" style="transition: transform 0.2s;">
                               <div class="position-relative bg-light text-center" style="min-height: 200px;">
                                   <!-- Image Area -->
@@ -665,6 +686,38 @@ window.addEventListener('load', () => {
             window.scrollTo(0, parseInt(savedScroll));
             sessionStorage.removeItem('golden_audit_scroll'); // Clear
         }, 100); // Small delay to ensure layout is ready
+    }
+
+    // NEW: Client-Side Filters
+    const filterInput = document.getElementById('filterInput');
+    const toggleCompleted = document.getElementById('hideCompletedToggle');
+    const items = document.querySelectorAll('.item-card-col');
+
+    function applyFilters() {
+        const txt = filterInput ? filterInput.value.toLowerCase() : '';
+        const hideDone = toggleCompleted ? toggleCompleted.checked : false;
+
+        items.forEach(el => {
+            const dataSearch = el.getAttribute('data-search') || '';
+            const isComplete = el.getAttribute('data-complete') === 'true';
+            
+            let show = true;
+            if (txt && !dataSearch.includes(txt)) show = false;
+            if (hideDone && isComplete) show = false;
+
+            if(show) {
+                el.classList.remove('d-none');
+                el.classList.add('d-flex'); // Restore flex
+            } else {
+                el.classList.add('d-none');
+                el.classList.remove('d-flex');
+            }
+        });
+    }
+
+    if(filterInput && toggleCompleted) {
+        filterInput.addEventListener('keyup', applyFilters);
+        toggleCompleted.addEventListener('change', applyFilters);
     }
 });
 
