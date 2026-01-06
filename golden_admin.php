@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__.'/config.php';
-require_auth('admin'); // solo administradores
+require_auth(['admin','ingenieria']); // solo administradores
 
 function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 

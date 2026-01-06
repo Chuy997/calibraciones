@@ -35,8 +35,9 @@ function active(string $file): string {
     </button>
     <div id="topnav" class="collapse navbar-collapse">
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
-
+        <?php $role = $_SESSION['role'] ?? ''; ?>
+        
+        <?php if ($role === 'admin'): ?>
           <!-- Dropdown Instrumentos de medición -->
           <?php
             $instPages = ['admin.php','out_of_use.php','report.php'];
@@ -65,10 +66,12 @@ function active(string $file): string {
               </li>
             </ul>
           </li>
+        <?php endif; ?>
 
+        <?php if ($role === 'admin' || $role === 'ingenieria'): ?>
           <!-- Dropdown Golden -->
           <?php
-            $goldPages = ['golden_admin.php','golden_add.php'];
+            $goldPages = ['golden_admin.php','golden_add.php','golden_audit.php','golden_update.php','golden_history.php','golden_scrap.php'];
             $goldActive = in_array($current, $goldPages, true) ? 'active' : '';
           ?>
           <li class="nav-item dropdown">
@@ -95,13 +98,50 @@ function active(string $file): string {
             </ul>
           </li>
 
+          <!-- Dropdown Activos Ingenieria (NUEVO) -->
+          <?php
+            $ingPages = ['ingenieria_admin.php','ingenieria_add.php','ingenieria_audit.php','ingenieria_update.php','ingenieria_history.php','ingenieria_scrap.php'];
+            $ingActive = in_array($current, $ingPages, true) ? 'active' : '';
+          ?>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle <?= $ingActive ?>"
+               href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="fa fa-industry me-1"></i>Activos Ingeniería
+            </a>
+            <ul class="dropdown-menu dropdown-menu-dark">
+              <li>
+                <a class="dropdown-item <?= active('ingenieria_admin.php') ?>" href="ingenieria_admin.php">
+                  <i class="fa fa-clipboard-list me-2"></i>Inventario
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item <?= active('ingenieria_audit.php') ?>" href="ingenieria_audit.php">
+                  <i class="fa fa-clipboard-check me-2"></i>Auditoría
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item <?= active('ingenieria_add.php') ?>" href="ingenieria_add.php">
+                  <i class="fa fa-plus me-2"></i>Nuevo
+                </a>
+              </li>
+            </ul>
+          </li>
+          <li class="nav-item me-2">
+            <a class="nav-link <?= active('assets_hw_admin.php') ?>" href="assets_hw_admin.php">
+              <i class="fa fa-server me-1"></i> Assets HW
+            </a>
+          </li>
+        <?php endif; ?>
+
+        <?php if ($role === 'admin'): ?>
           <li class="nav-item">
             <a class="nav-link <?= active('users_admin.php') ?>" href="users_admin.php">
               <i class="fa fa-users-gear me-1"></i>Usuarios
             </a>
           </li>
+        <?php endif; ?>
 
-        <?php else: ?>
+        <?php if ($role !== 'admin' && $role !== 'ingenieria'): ?>
           <li class="nav-item">
             <a class="nav-link <?= active('consulta_dashboard.php') ?>" href="consulta_dashboard.php">
               <i class="fa fa-magnifying-glass me-1"></i>Consulta

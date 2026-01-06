@@ -84,13 +84,23 @@ function csrf_validate(string $token): bool {
 /**
  * Guards de autenticación/rol
  */
-function require_auth(?string $role=null): void {
+function require_auth(string|array|null $role=null): void {
     secure_session_start();
     if (empty($_SESSION['username'])) {
         header('Location: login.php'); exit();
     }
-    if ($role !== null && (($_SESSION['role'] ?? null) !== $role)) {
-        http_response_code(403);
-        exit('Forbidden');
+    if ($role !== null) {
+        $myRole = $_SESSION['role'] ?? null;
+        if (is_array($role)) {
+            if (!in_array($myRole, $role, true)) {
+                http_response_code(403);
+                exit('Forbidden');
+            }
+        } else {
+            if ($myRole !== $role) {
+                http_response_code(403);
+                exit('Forbidden');
+            }
+        }
     }
 }

@@ -1,5 +1,5 @@
 <?php
-// /var/www/html/calibraciones/golden_audit_view.php
+// /var/www/html/calibraciones/ingenieria_audit_view.php
 declare(strict_types=1);
 
 require_once __DIR__.'/config.php';
@@ -9,14 +9,14 @@ function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES,
 
 $id = $_GET['id'] ?? null;
 if (!$id) {
-    header('Location: golden_audit.php');
+    header('Location: ingenieria_audit.php');
     exit;
 }
 
 $pdo = pdo();
 
 // Get Audit Header
-$stmt = $pdo->prepare("SELECT * FROM golden_audits WHERE AuditID = ?");
+$stmt = $pdo->prepare("SELECT * FROM ingenieria_audits WHERE AuditID = ?");
 $stmt->execute([$id]);
 $audit = $stmt->fetch();
 
@@ -33,8 +33,8 @@ $stmtDetails = $pdo->prepare("
         g.SerialNumber, 
         g.Location, 
         g.Picture 
-    FROM golden_audit_items d
-    LEFT JOIN golden_items g ON d.GoldenID = g.ID
+    FROM ingenieria_audit_items d
+    LEFT JOIN ingenieria_items g ON d.IngenieriaID = g.ID
     WHERE d.AuditID = ?
     ORDER BY g.Location ASC, g.ID ASC
 ");
@@ -54,7 +54,7 @@ $items = $stmtDetails->fetchAll();
                 <i class="fa fa-user me-1"></i><?= h($audit['Auditor']) ?>
             </p>
         </div>
-        <a href="golden_audit.php" class="btn btn-outline-secondary">
+        <a href="ingenieria_audit.php" class="btn btn-outline-secondary">
             <i class="fa fa-arrow-left me-1"></i> Volver al listado
         </a>
     </div>
@@ -131,7 +131,7 @@ $items = $stmtDetails->fetchAll();
                                     </div>
                                 <?php endif; ?>
                                 <div>
-                                    <div class="fw-bold"><?= h($item['GoldenID']) ?></div>
+                                    <div class="fw-bold"><?= h($item['IngenieriaID']) ?></div>
                                     <div class="small text-muted"><?= h($item['Description']) ?></div>
                                 </div>
                             </div>

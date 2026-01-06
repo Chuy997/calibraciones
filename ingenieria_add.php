@@ -1,5 +1,5 @@
 <?php
-// /var/www/html/calibraciones/golden_add.php
+// /var/www/html/calibraciones/ingenieria_add.php
 declare(strict_types=1);
 
 require_once __DIR__ . '/config.php';
@@ -15,19 +15,19 @@ const MAX_PDF_BYTES = 20 * 1024 * 1024;  // 20MB para documento
 $ALLOWED_IMG_EXT = ['jpg','jpeg','png','webp','heic','heif']; // móviles iOS/Android
 $ALLOWED_PDF_EXT = ['pdf'];
 
-// --- Utilidad: siguiente ID GLDTE-XXX ---
-function next_golden_id(PDO $pdo): string {
-    // Toma el máximo numérico de IDs GLDTE-###
+// --- Utilidad: siguiente ID ING-XXX ---
+function next_ingenieria_id(PDO $pdo): string {
+    // Toma el máximo numérico de IDs ING-###
     $st = $pdo->query("SELECT MAX(CAST(SUBSTRING(ID, 7) AS UNSIGNED)) AS maxnum
-                       FROM golden_items
-                       WHERE ID LIKE 'GLDTE-%'");
+                       FROM ingenieria_items
+                       WHERE ID LIKE 'ING-%'");
     $max = (int)($st->fetchColumn() ?: 0);
     $n   = $max + 1;
-    return sprintf('GLDTE-%03d', $n);
+    return sprintf('ING-%03d', $n);
 }
 
 // ID sugerido (preview en el formulario)
-$suggestedId = next_golden_id($pdo);
+$suggestedId = next_ingenieria_id($pdo);
 
 $errors = [];
 $values = [
@@ -175,10 +175,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->beginTransaction();
 
             // Recalcular el siguiente ID dentro de la transacción (mitiga condiciones de carrera)
-            $newId = next_golden_id($pdo);
+            $newId = next_ingenieria_id($pdo);
 
             // Carpeta por ID
-            $destDirAbs = __DIR__ . '/uploads/golden/' . $newId . '/';
+            $destDirAbs = __DIR__ . '/uploads/ingenieria/' . $newId . '/';
 
             // Subir archivos (opcionales)
             $pictureRel  = handleUpload('picture',  $destDirAbs, 'img'); // puede ser null
@@ -186,7 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Insert principal (incluye Pedimento e ID auto)
             $ins = $pdo->prepare("
-                INSERT INTO golden_items
+                INSERT INTO ingenieria_items
                   (ID, Description, Brand, Model, SerialNumber, Pedimento, Location, Department, Owner, Status, Picture, Document, Comments, CreatedAt, UpdatedAt)
                 VALUES
                   (:ID,:Description,:Brand,:Model,:SerialNumber,:Pedimento,:Location,:Department,:Owner,:Status,:Picture,:Document,:Comments,NOW(),NOW())
@@ -209,13 +209,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Historial inicial (incluye Pedimento)
             $hst = $pdo->prepare("
-                INSERT INTO golden_history
-                  (GoldenID, Action, Description, Brand, Model, SerialNumber, Pedimento, Location, Department, Owner, Status, Picture, Document, Comments, CreatedAt)
+                INSERT INTO ingenieria_history
+                  (IngenieriaID, Action, Description, Brand, Model, SerialNumber, Pedimento, Location, Department, Owner, Status, Picture, Document, Comments, CreatedAt)
                 VALUES
-                  (:GoldenID,'create',:Description,:Brand,:Model,:SerialNumber,:Pedimento,:Location,:Department,:Owner,:Status,:Picture,:Document,:Comments,NOW())
+                  (:IngenieriaID,'create',:Description,:Brand,:Model,:SerialNumber,:Pedimento,:Location,:Department,:Owner,:Status,:Picture,:Document,:Comments,NOW())
             ");
             $hst->execute([
-              ':GoldenID'     => $newId,
+              ':IngenieriaID'     => $newId,
               ':Description'  => $values['description'],
               ':Brand'        => $values['brand'] ?: null,
               ':Model'        => $values['model'] ?: null,
@@ -231,7 +231,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
 
             $pdo->commit();
-            header('Location: golden_admin.php');
+            header('Location: ingenieria_admin.php');
             exit;
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
@@ -244,7 +244,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <div class="row justify-content-center">
   <div class="col-12 col-lg-8 col-xl-7">
-    <h1 class="h4 my-3">Nuevo material Golden</h1>
+    <h1 class="h4 my-3">Nuevo material Activos Ingeniería</h1>
 
     <?php if ($errors): ?>
       <div class="alert alert-danger">
@@ -256,7 +256,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
     <?php endif; ?>
 
-    <form method="POST" action="golden_add.php" enctype="multipart/form-data" class="needs-validation" novalidate>
+    <form method="POST" action="ingenieria_add.php" enctype="multipart/form-data" class="needs-validation" novalidate>
       <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
 
       <div class="row g-3">
@@ -264,7 +264,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="col-12">
           <label class="form-label">ID (se asigna automáticamente)</label>
           <input type="text" class="form-control" value="<?= h($suggestedId) ?>" disabled>
-          <div class="form-text">Formato: GLDTE-###. El valor final se confirma al guardar.</div>
+          <div class="form-text">Formato: ING-###. El valor final se confirma al guardar.</div>
         </div>
 
         <!-- Descripción -->
@@ -350,7 +350,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
 
       <div class="mt-4 d-flex gap-2">
-        <a href="golden_admin.php" class="btn btn-outline-secondary btn-lg flex-fill">Cancelar</a>
+        <a href="ingenieria_admin.php" class="btn btn-outline-secondary btn-lg flex-fill">Cancelar</a>
         <button type="submit" class="btn btn-success btn-lg flex-fill">
           <i class="fa fa-save me-2"></i>Guardar
         </button>

@@ -1,5 +1,5 @@
 <?php
-// /var/www/html/calibraciones/golden_history.php
+// /var/www/html/calibraciones/assets_hw_history.php
 declare(strict_types=1);
 
 require_once __DIR__.'/config.php';
@@ -17,7 +17,7 @@ if ($id === '' || !preg_match('/^[A-Za-z0-9._-]+$/', $id)) {
 // --- Traer historial ---
 $sql = "
   SELECT
-    GoldenID,
+    AssetsHWID,
     Action,
     Description,
     Brand,
@@ -31,8 +31,8 @@ $sql = "
     Document,
     Comments,
     CreatedAt
-  FROM golden_history
-  WHERE GoldenID = :id
+  FROM assets_hw_history
+  WHERE AssetsHWID = :id
   ORDER BY CreatedAt DESC
 ";
 $stmt = pdo()->prepare($sql);
@@ -54,12 +54,12 @@ sort($actions); sort($statuses);
 
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
   <div>
-    <h1 class="h4 m-0">Golden – Historial</h1>
+    <h1 class="h4 m-0">Assets HW – Historial</h1>
     <div class="text-secondary small mt-1">
       ID: <span class="text-light fw-semibold"><?= h($id) ?></span>
     </div>
   </div>
-  <a href="golden_admin.php" class="btn btn-outline-secondary btn-sm">
+  <a href="assets_hw_admin.php" class="btn btn-outline-secondary btn-sm">
     <i class="fa fa-arrow-left me-1"></i> Inventario
   </a>
 </div>
@@ -303,7 +303,7 @@ if (imgModal) {
 
 <?php else: ?>
   <div class="card p-4">
-    <div class="text-secondary">No hay historial para este material Golden.</div>
+    <div class="text-secondary">No hay historial para este material Assets HW.</div>
   </div>
 <?php endif; ?>
 

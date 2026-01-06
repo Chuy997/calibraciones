@@ -1,5 +1,5 @@
 <?php
-// /var/www/html/calibraciones/golden_scrap.php
+// /var/www/html/calibraciones/ingenieria_scrap.php
 declare(strict_types=1);
 
 require_once __DIR__.'/config.php';
@@ -21,7 +21,7 @@ if ($id === '' || !preg_match('/^[A-Za-z0-9._-]+$/', $id)) {
 $stmt = $pdo->prepare("
   SELECT ID, Description, Brand, Model, SerialNumber,
          Location, Department, Owner, Status, Picture, Document, Comments
-  FROM golden_items
+  FROM ingenieria_items
   WHERE ID = :id
 ");
 $stmt->execute([':id' => $id]);
@@ -29,7 +29,7 @@ $item = $stmt->fetch();
 
 if (!$item) {
   http_response_code(404);
-  exit('Material Golden no encontrado.');
+  exit('Material Ingenieria no encontrado.');
 }
 
 // --- POST: procesar envío a Scrap ---
@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Si ya está en Scrap, no repetir
     if ((string)$item['Status'] === 'Scrap') {
       // Ya en scrap: simplemente volver al admin con mensaje opcional
-      header('Location: golden_admin.php');
+      header('Location: ingenieria_admin.php');
       exit;
     }
 
@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       // Actualizar estado a Scrap
       $upd = $pdo->prepare("
-        UPDATE golden_items
+        UPDATE ingenieria_items
         SET Status = 'Scrap',
             Comments = CONCAT(COALESCE(Comments,''), CASE WHEN COALESCE(Comments,'')='' THEN '' ELSE '\n' END, '[Scrap] ', :reason),
             UpdatedAt = NOW()
@@ -71,15 +71,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       // Insertar historial (snapshot con estado Scrap)
       $hst = $pdo->prepare("
-        INSERT INTO golden_history
-          (GoldenID, Action, Description, Brand, Model, SerialNumber,
+        INSERT INTO ingenieria_history
+          (IngenieriaID, Action, Description, Brand, Model, SerialNumber,
            Location, Department, Owner, Status, Picture, Document, Comments, CreatedAt)
         VALUES
-          (:GoldenID, 'scrap', :Description, :Brand, :Model, :SerialNumber,
+          (:IngenieriaID, 'scrap', :Description, :Brand, :Model, :SerialNumber,
            :Location, :Department, :Owner, 'Scrap', :Picture, :Document, :Comments, NOW())
       ");
       $hst->execute([
-        ':GoldenID'     => $item['ID'],
+        ':IngenieriaID'     => $item['ID'],
         ':Description'  => $item['Description'],
         ':Brand'        => $item['Brand'],
         ':Model'        => $item['Model'],
@@ -93,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       ]);
 
       $pdo->commit();
-      header('Location: golden_admin.php');
+      header('Location: ingenieria_admin.php');
       exit;
     } catch (Throwable $e) {
       if ($pdo->inTransaction()) $pdo->rollBack();
@@ -171,9 +171,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="alert alert-secondary">
         Este material ya se encuentra en <strong>Scrap</strong>.
       </div>
-      <a href="golden_admin.php" class="btn btn-outline-secondary">Volver</a>
+      <a href="ingenieria_admin.php" class="btn btn-outline-secondary">Volver</a>
     <?php else: ?>
-      <form method="POST" action="golden_scrap.php" class="needs-validation" novalidate>
+      <form method="POST" action="ingenieria_scrap.php" class="needs-validation" novalidate>
         <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
         <input type="hidden" name="id" value="<?= h($item['ID']) ?>">
 
@@ -184,7 +184,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
 
         <div class="d-flex gap-2">
-          <a href="golden_admin.php" class="btn btn-outline-secondary">Cancelar</a>
+          <a href="ingenieria_admin.php" class="btn btn-outline-secondary">Cancelar</a>
           <button type="submit" class="btn btn-warning">
             <i class="fa fa-triangle-exclamation me-2"></i>Confirmar envío a Scrap
           </button>

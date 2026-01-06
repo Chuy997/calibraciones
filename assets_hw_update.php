@@ -1,5 +1,5 @@
 <?php
-// /var/www/html/calibraciones/golden_update.php
+// /var/www/html/calibraciones/assets_hw_update.php
 declare(strict_types=1);
 
 require_once __DIR__ . '/config.php';
@@ -9,7 +9,7 @@ function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES,
 
 $pdo = pdo();
 
-// LÍMITES Y VALIDACIONES DE ARCHIVOS (igual estilo que en golden_add)
+// LÍMITES Y VALIDACIONES DE ARCHIVOS (igual estilo que en assets_hw_add)
 const MAX_IMG_BYTES = 8 * 1024 * 1024;   // 8MB
 const MAX_PDF_BYTES = 20 * 1024 * 1024;  // 20MB
 $ALLOWED_IMG_EXT = ['jpg','jpeg','png','webp','heic','heif'];
@@ -42,14 +42,14 @@ $st = $pdo->prepare("
     Pedimento,
     Location, Department, Owner, Status,
     Picture, Document, Comments, CreatedAt, UpdatedAt
-  FROM golden_items
+  FROM assets_hw_items
   WHERE ID = ?
 ");
 $st->execute([$id]);
 $item = $st->fetch();
 if (!$item) {
   http_response_code(404);
-  exit('Material Golden no encontrado.');
+  exit('Material Ingenieria no encontrado.');
 }
 
 $errors = [];
@@ -174,7 +174,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $pdo->beginTransaction();
 
       // Directorio por ID
-      $destDirAbs = __DIR__ . '/uploads/golden/' . $id . '/';
+      $destDirAbs = __DIR__ . '/uploads/ingenieria/' . $id . '/';
 
       // Subidas opcionales
       $newPic  = handleUpload('picture',  $destDirAbs, 'img'); // null si no hay
@@ -185,7 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       // UPDATE principal (incluye Pedimento)
       $upd = $pdo->prepare("
-        UPDATE golden_items
+        UPDATE assets_hw_items
            SET Description  = :Description,
                Brand        = :Brand,
                Model        = :Model,
@@ -217,13 +217,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       // Historial de actualización (auditoría) — incluye Pedimento
       $hst = $pdo->prepare("
-        INSERT INTO golden_history
-          (GoldenID, Action, Description, Brand, Model, SerialNumber, Pedimento, Location, Department, Owner, Status, Picture, Document, Comments, CreatedAt)
+        INSERT INTO assets_hw_history
+          (AssetsHWID, Action, Description, Brand, Model, SerialNumber, Pedimento, Location, Department, Owner, Status, Picture, Document, Comments, CreatedAt)
         VALUES
-          (:GoldenID,'update',:Description,:Brand,:Model,:SerialNumber,:Pedimento,:Location,:Department,:Owner,:Status,:Picture,:Document,:Comments,NOW())
+          (:AssetsHWID,'update',:Description,:Brand,:Model,:SerialNumber,:Pedimento,:Location,:Department,:Owner,:Status,:Picture,:Document,:Comments,NOW())
       ");
       $hst->execute([
-        ':GoldenID'     => $id,
+        ':AssetsHWID'     => $id,
         ':Description'  => $values['description'],
         ':Brand'        => $values['brand'] ?: null,
         ':Model'        => $values['model'] ?: null,
@@ -239,7 +239,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       ]);
 
       $pdo->commit();
-      header('Location: golden_admin.php');
+      header('Location: assets_hw_admin.php');
       exit;
     } catch (Throwable $e) {
       if ($pdo->inTransaction()) $pdo->rollBack();
@@ -254,7 +254,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <div class="col-12 col-lg-8 col-xl-7">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h1 class="h4 m-0 fw-bold">✏️ Editar Material</h1>
-      <a href="golden_admin.php" class="btn btn-outline-secondary">
+      <a href="assets_hw_admin.php" class="btn btn-outline-secondary">
         <i class="fa fa-arrow-left me-1"></i> Volver
       </a>
     </div>
@@ -271,7 +271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
     <?php endif; ?>
 
-    <form method="POST" action="golden_update.php?id=<?= h($id) ?>" enctype="multipart/form-data" class="needs-validation" novalidate>
+    <form method="POST" action="assets_hw_update.php?id=<?= h($id) ?>" enctype="multipart/form-data" class="needs-validation" novalidate>
       <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
       <input type="hidden" name="id" value="<?= h($id) ?>">
 
@@ -302,7 +302,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <!-- Pedimento (opcional) -->
         <div class="col-md-6">
-          <label for="pedimento" class="form-label">Pedimento (opcional)</label>
+          <label for="pedimento" class="form-label">Asset No</label>
           <input type="text" id="pedimento" name="pedimento" class="form-control" value="<?= h($values['pedimento']) ?>" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
         </div>
 
@@ -324,7 +324,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <label class="form-label">Estado</label>
           <input type="text" class="form-control" value="<?= h($values['status']) ?>" disabled>
           <div class="form-text">
-            Para dar de baja, usa <a href="golden_scrap.php?id=<?= urlencode($id) ?>">Enviar a Scrap</a>.
+            Para dar de baja, usa <a href="assets_hw_scrap.php?id=<?= urlencode($id) ?>">Enviar a Scrap</a>.
           </div>
         </div>
 
@@ -372,7 +372,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
 
       <div class="mt-4 d-flex gap-2">
-        <a href="golden_admin.php" class="btn btn-outline-secondary btn-lg flex-fill">Cancelar</a>
+        <a href="assets_hw_admin.php" class="btn btn-outline-secondary btn-lg flex-fill">Cancelar</a>
         <button type="submit" class="btn btn-primary btn-lg flex-fill" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
           <i class="fa fa-save me-2"></i> Guardar
         </button>
