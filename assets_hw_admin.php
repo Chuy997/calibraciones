@@ -89,9 +89,9 @@ $rows = pdo()->query($sql)->fetchAll();
             </a>
           </li>
           <li>
-            <button class="dropdown-item d-flex align-items-center gap-2" onclick="window.print()">
+            <a class="dropdown-item d-flex align-items-center gap-2" href="assets_hw_inventory_print.php" target="_blank">
               <i class="fa fa-print text-white"></i> <span>Imprimir / PDF</span>
-            </button>
+            </a>
           </li>
         </ul>
       </div>

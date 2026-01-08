@@ -18,7 +18,7 @@ $ALLOWED_PDF_EXT = ['pdf'];
 // --- Utilidad: siguiente ID HW-XXX ---
 function next_assets_hw_id(PDO $pdo): string {
     // Toma el máximo numérico de IDs HW-###
-    $st = $pdo->query("SELECT MAX(CAST(SUBSTRING(ID, 7) AS UNSIGNED)) AS maxnum
+    $st = $pdo->query("SELECT MAX(CAST(SUBSTRING(ID, 4) AS UNSIGNED)) AS maxnum
                        FROM assets_hw_items
                        WHERE ID LIKE 'HW-%'");
     $max = (int)($st->fetchColumn() ?: 0);
@@ -168,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($values['location'] === '')    $errors[] = 'La ubicación es obligatoria.';
     if ($values['department'] === '')  $errors[] = 'El departamento es obligatorio.';
     if ($values['owner'] === '')       $errors[] = 'El responsable es obligatorio.';
-    // pedimento: opcional (sin validación)
+    if ($values['pedimento'] === '')   $errors[] = 'El Asset No es obligatorio.';
 
     if (!$errors) {
         try {
@@ -287,10 +287,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <input type="text" class="form-control" id="serialNumber" name="serialNumber" value="<?= h($values['serialNumber']) ?>">
         </div>
 
-        <!-- Pedimento (opcional) -->
+        <!-- Pedimento (Mandatorio) -->
         <div class="col-sm-6">
-          <label for="pedimento" class="form-label">Asset No</label>
-          <input type="text" class="form-control" id="pedimento" name="pedimento" value="<?= h($values['pedimento']) ?>" placeholder="Ej. A123456798">
+          <label for="pedimento" class="form-label">Asset No<span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="pedimento" name="pedimento" value="<?= h($values['pedimento']) ?>" required placeholder="Ej. A123456798">
         </div>
 
         <div class="col-12 col-md-6">

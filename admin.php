@@ -82,7 +82,14 @@ function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES,
       </div>
     </div>
 
-    <div class="ms-auto">
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <!-- Export Audit Style -->
+      <a href="instruments_inventory_print.php" target="_blank" class="btn btn-outline-secondary" title="Imprimir Inventario Actual">
+          <i class="fa fa-print"></i> Listado Total
+      </a>
+
+      <div class="vr mx-2"></div>
+
       <form class="d-flex align-items-center gap-2" action="generate_report.php" method="get">
         <select name="month" class="form-select" required>
           <?php for ($m=1; $m<=12; $m++): ?>

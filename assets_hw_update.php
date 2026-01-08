@@ -153,15 +153,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   foreach (['description','brand','model','serialNumber','pedimento','location','department','owner','comments'] as $k) {
     $values[$k] = trim((string)($_POST[$k] ?? ''));
   }
-  // Status no se edita aquí; si lo envían por error, se ignora
-  $values['status'] = (string)$item['Status'];
+  // Status: Allow editing for non-scrap states
+  $values['status'] = trim((string)($_POST['status'] ?? $item['Status']));
 
   // Validaciones mínimas
   if ($values['description'] === '') $errors[] = 'La descripción es obligatoria.';
   if ($values['location'] === '')    $errors[] = 'La ubicación es obligatoria.';
   if ($values['department'] === '')  $errors[] = 'El departamento es obligatorio.';
   if ($values['owner'] === '')       $errors[] = 'El responsable es obligatorio.';
-  // pedimento es opcional, sin validación extra
+  if ($values['pedimento'] === '')   $errors[] = 'El Asset No es obligatorio.';
 
   // Si ya está en Scrap → no permitir modificación
   $isScrap = (string)$item['Status'] === 'Scrap';
@@ -197,6 +197,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                Comments     = :Comments,
                Picture      = :Picture,
                Document     = :Document,
+               Status       = :Status,
                UpdatedAt    = NOW()
          WHERE ID = :ID
       ");
@@ -210,6 +211,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ':Department'   => $values['department'],
         ':Owner'        => $values['owner'],
         ':Comments'     => $values['comments'] ?: null,
+        ':Status'       => $values['status'],
         ':Picture'      => $currPicture ?: null,
         ':Document'     => $currDocument ?: null,
         ':ID'           => $id,
@@ -232,7 +234,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ':Location'     => $values['location'],
         ':Department'   => $values['department'],
         ':Owner'        => $values['owner'],
-        ':Status'       => $values['status'], // se mantiene (Activo) aquí
+        ':Status'       => $values['status'], // Actualizado
         ':Picture'      => $currPicture ?: null,
         ':Document'     => $currDocument ?: null,
         ':Comments'     => $values['comments'] ?: null,
@@ -300,10 +302,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <input type="text" id="serialNumber" name="serialNumber" class="form-control" value="<?= h($values['serialNumber']) ?>" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
         </div>
 
-        <!-- Pedimento (opcional) -->
+        <!-- Pedimento (Mandatorio) -->
         <div class="col-md-6">
-          <label for="pedimento" class="form-label">Asset No</label>
-          <input type="text" id="pedimento" name="pedimento" class="form-control" value="<?= h($values['pedimento']) ?>" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
+          <label for="pedimento" class="form-label">Asset No<span class="text-danger">*</span></label>
+          <input type="text" id="pedimento" name="pedimento" class="form-control" value="<?= h($values['pedimento']) ?>" required <?= $item['Status']==='Scrap'?'disabled':'' ?>>
         </div>
 
         <div class="col-md-6">
@@ -321,8 +323,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
 
         <div class="col-sm-6">
-          <label class="form-label">Estado</label>
-          <input type="text" class="form-control" value="<?= h($values['status']) ?>" disabled>
+          <label for="status" class="form-label">Estado</label>
+          <select id="status" name="status" class="form-select" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
+            <?php foreach(['Activo','Pending','Out of use'] as $st): ?>
+              <option value="<?= $st ?>" <?= $values['status']===$st ? 'selected' : '' ?>><?= $st ?></option>
+            <?php endforeach; ?>
+          </select>
           <div class="form-text">
             Para dar de baja, usa <a href="assets_hw_scrap.php?id=<?= urlencode($id) ?>">Enviar a Scrap</a>.
           </div>

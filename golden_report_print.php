@@ -46,9 +46,10 @@ $good     = 0;
 $damaged  = 0;
 
 foreach ($items as $itm) {
-    if ($itm['ConditionCheck'] === 'Missing') $missing++;
-    elseif ($itm['ConditionCheck'] === 'Good') $good++;
-    elseif ($itm['ConditionCheck'] === 'Damaged') $damaged++;
+    $cond = trim($itm['ConditionCheck']); // Normalize
+    if ($cond === 'Missing') $missing++;
+    elseif ($cond === 'Good') $good++;
+    elseif ($cond === 'Damage' || $cond === 'Damaged') $damaged++; // Handle both
 }
 
 // Format Date
@@ -228,13 +229,13 @@ $dateFormatted = date("d/m/Y H:i", strtotime($audit['AuditDate'] ?: $audit['Star
                         $cls = match($item['ConditionCheck']) {
                             'Good' => 'status-good',
                             'Missing' => 'status-missing',
-                            'Damaged' => 'status-damaged',
+                            'Damaged', 'Damage' => 'status-damaged',
                             default => ''
                         };
                         $lbl = match($item['ConditionCheck']) {
                             'Good' => 'Bueno',
                             'Missing' => 'Faltante',
-                            'Damaged' => 'Dañado',
+                            'Damaged', 'Damage' => 'Dañado',
                             default => $item['ConditionCheck']
                         };
                     ?>
@@ -247,7 +248,7 @@ $dateFormatted = date("d/m/Y H:i", strtotime($audit['AuditDate'] ?: $audit['Star
     </table>
 
     <div style="font-size: 10px; color: #777; border-top: 1px solid #ccc; padding-top: 5px;">
-        <p>Reporte generado el <?= date('d/m/Y H:i:s') ?> por el sistema de Calibraciones.</p>
+        <p>Reporte generado el <?= date('d/m/Y H:i:s') ?> por el sistema de Gestion de Activos.</p>
     </div>
 
 </body>

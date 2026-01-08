@@ -32,8 +32,29 @@ $pdo = pdo();
 // 1. CREATE DRAFT
 if (isset($_GET['action']) && $_GET['action'] === 'create_draft') {
     try {
-        $stmt = $pdo->prepare("INSERT INTO assets_hw_audits (Auditor, Status, AuditDate) VALUES (?, 'Open', NOW())");
-        $stmt->execute([$currentUser]);
+        // Count active items first
+        $total = $pdo->query("SELECT COUNT(*) FROM assets_hw_items WHERE Status='Activo'")->fetchColumn();
+        
+        $stmt = $pdo->prepare("INSERT INTO assets_hw_audits (Auditor, Status, AuditDate, TotalItems, TotalMissing, TotalDamaged) VALUES (?, 'Open', NOW(), ?, ?, 0)");
+        // Initially, TotalMissing = TotalItems because nothing has been checked yet?
+        // OR TotalMissing = 0? 
+        // Logic: "Clean" means TotalMissing == 0. 
+        // If we start validation, technically everything is unverified (Missing?).
+        // However, usually we start with 0 Missing and count up as we find errors?
+        // Wait, if TotalMissing=0, it says Clean.
+        // Let's set TotalItems correctly. The user says "0 items".
+        // If I set TotalItems=$total, at least the count is right.
+        // If I set TotalMissing=$total (all unverified), it won't say clean.
+        // But usually "Missing" means confirmed missing. 
+        // Let's stick to TotalItems = $total, TotalMissing = 0 (optimistic start) 
+        // OR better: The "Clean" logic in list view is: TotalMissing > 0 -> Falt. Else Clean.
+        // So for a fresh audit, it IS "Clean" until proven otherwise?
+        // But the user complained "me aparece como clean". Maybe they expect "In Progress" or similar.
+        // The list view badges: Open = 'En Progreso'.
+        // The "Minuta" section says "Clean".
+        // Let's just fix the TotalItems first.
+        $stmt->execute([$currentUser, $total, 0]); 
+        
         $newId = $pdo->lastInsertId();
         header("Location: assets_hw_audit.php?action=edit&id=$newId");
         exit;
@@ -387,6 +408,18 @@ include __DIR__.'/partials/header.php';
                                 <small class="d-block text-muted text-uppercase" style="font-size: 0.7rem;">Minuta</small>
                                 <?php if($row['TotalMissing'] > 0): ?>
                                     <span class="text-danger fw-bold"><?= $row['TotalMissing'] ?> Falt.</span>
+                                <?php elseif($isOpen): 
+                                    // Calculate pending count (Total - Saved)
+                                    $savedCount = $pdo->query("SELECT COUNT(*) FROM assets_hw_audit_items WHERE AuditID=".$row['AuditID'])->fetchColumn();
+                                    $pendingCount = $row['TotalItems'] - $savedCount;
+                                ?>
+                                    <span class="text-primary fw-bold">
+                                        <?php if($pendingCount > 0): ?>
+                                            <i class="fa fa-spinner fa-spin small"></i> <?= $pendingCount ?> Pend.
+                                        <?php else: ?>
+                                            <i class="fa fa-check text-success"></i> Listo
+                                        <?php endif; ?>
+                                    </span>
                                 <?php else: ?>
                                     <span class="text-success fw-bold"><i class="fa fa-check"></i> Clean</span>
                                 <?php endif; ?>
@@ -419,7 +452,7 @@ include __DIR__.'/partials/header.php';
         if (!$auditRow) die("Referencia vacía.");
 
         // Fetch Inventory & Saved State
-        $inv = $pdo->query("SELECT ID, Description, Brand, Model, SerialNumber, Location, Picture FROM assets_hw_items WHERE Status='Activo' ORDER BY Location ASC, ID ASC")->fetchAll();
+        $inv = $pdo->query("SELECT ID, Description, Brand, Model, SerialNumber, Location, Picture, Pedimento FROM assets_hw_items WHERE Status='Activo' ORDER BY Location ASC, ID ASC")->fetchAll();
         $savedStmt = $pdo->prepare("SELECT * FROM assets_hw_audit_items WHERE AuditID = ?");
         $savedStmt->execute([$id]);
         $saved = [];
@@ -452,12 +485,31 @@ include __DIR__.'/partials/header.php';
                     <button type="button" class="btn btn-success fw-bold" data-bs-toggle="modal" data-bs-target="#finishModal"><i class="fa fa-check me-1"></i> <span class="d-none d-md-inline">Terminar</span></button>
                 </div>
             </div>
-            <!-- Progress Summary -->
-             <div class="progress mt-3" style="height: 6px;">
-                 <?php 
-                    $total = count($inv); $done = count($saved); 
-                    $pct = $total > 0 ? ($done/$total)*100 : 0;
-                 ?>
+             <!-- Progress Summary -->
+             <?php 
+                // Calculate Pending Photos Count
+                $pendingPhotos = 0;
+                foreach ($inv as $item) {
+                    $s   = $saved[$item['ID']] ?? null;
+                    $cond = $s ? $s['ConditionCheck'] : 'Good';
+                    $pic = $item['Picture'];
+                    $isExempt = ($cond === 'Missing' || $cond === 'Scrap');
+                    $isNew = false;
+                    if ($pic && preg_match('/_([0-9]{10})\./', $pic, $matches)) {
+                        if ((int)$matches[1] >= strtotime($auditRow['AuditDate'])) $isNew = true;
+                    }
+                    if (!$isNew && !$isExempt) $pendingPhotos++;
+                }
+                
+                $total = count($inv); 
+                $done = $total > 0 ? $total - $pendingPhotos : 0;
+                $pct = $total > 0 ? ($done/$total)*100 : 0;
+             ?>
+             <div class="d-flex justify-content-between font-monospace small mb-1 fw-bold mt-3">
+                <span>Progreso: <?= $done ?>/<?= $total ?></span>
+                <span class="text-warning">Faltan Foto: <?= $pendingPhotos ?></span>
+             </div>
+             <div class="progress" style="height: 6px;">
                  <div class="progress-bar bg-success" style="width: <?= $pct ?>%"></div>
              </div>
         </div>
@@ -483,7 +535,7 @@ include __DIR__.'/partials/header.php';
                          </div>
                          <div class="form-check form-switch ms-2">
                              <input class="form-check-input" type="checkbox" id="hideCompletedToggle">
-                             <label class="form-check-label fw-bold small text-muted" for="hideCompletedToggle">Ocultar Completados (Foto Nueva)</label>
+                             <label class="form-check-label fw-bold small text-muted" for="hideCompletedToggle">Ver Solo Pendientes</label>
                          </div>
                      </div>
                  </div>
@@ -517,7 +569,7 @@ include __DIR__.'/partials/header.php';
                             elseif($isNewPic) $borderClass = 'border-success';
 
                             // Search Data
-                            $searchStr = strtolower($item['Description'] . ' ' . $item['Brand'] . ' ' . $item['Model'] . ' ' . $item['SerialNumber'] . ' ' . $gid);
+                            $searchStr = strtolower($item['Description'] . ' ' . $item['Brand'] . ' ' . $item['Model'] . ' ' . $item['SerialNumber'] . ' ' . $item['Pedimento'] . ' ' . $gid);
                       ?>
                       <div class="col-12 col-md-6 col-lg-4 col-xl-3 d-flex align-items-stretch item-card-col" data-search="<?= h($searchStr) ?>" data-complete="<?= $isNewPic ? 'true' : 'false' ?>">
                           <div class="card w-100 shadow-sm <?= $borderClass ?>" style="transition: transform 0.2s;">
@@ -561,6 +613,11 @@ include __DIR__.'/partials/header.php';
                                   <!-- Serial -->
                                   <div class="mb-3 small font-monospace text-muted bg-secondary bg-opacity-10 p-1 rounded text-center text-truncate">
                                       SN: <?= h($item['SerialNumber']) ?>
+                                  </div>
+                                  
+                                  <!-- Asset No -->
+                                  <div class="mb-3 small font-monospace text-muted bg-secondary bg-opacity-10 p-1 rounded text-center text-truncate">
+                                      Asset: <?= h($item['Pedimento']) ?>
                                   </div>
 
                                   <!-- Alerts -->

@@ -5,6 +5,8 @@ declare(strict_types=1);
 /**
  * Carga variables desde .env (simple)
  */
+date_default_timezone_set('America/Mexico_City');
+
 function env(string $key, ?string $default=null): ?string {
     static $vars=null;
     if ($vars === null) {
@@ -42,6 +44,7 @@ function pdo(): PDO {
     ];
     try {
         $pdo = new PDO($dsn, $user, $pass, $options);
+        $pdo->exec("SET time_zone = '-06:00'"); // Adjust DB offset for Mexico City
     } catch (Throwable $e) {
         http_response_code(500);
         exit('DB connection error.');

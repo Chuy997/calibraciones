@@ -38,6 +38,7 @@ $rows = pdo()->query($sql)->fetchAll();
   <div class="d-flex gap-2">
     <a class="btn btn-primary" href="golden_audit.php"><i class="fa fa-clipboard-check me-1"></i> Auditar</a>
     <a class="btn btn-success" href="golden_add.php"><i class="fa fa-plus me-1"></i> Nuevo</a>
+    <a class="btn btn-danger" href="golden_scrap_session.php"><i class="fa fa-boxes-packing me-1"></i> Scrap Lotes</a>
   </div>
 </div>
 
@@ -89,9 +90,9 @@ $rows = pdo()->query($sql)->fetchAll();
             </a>
           </li>
           <li>
-            <button class="dropdown-item d-flex align-items-center gap-2" onclick="window.print()">
+            <a class="dropdown-item d-flex align-items-center gap-2" href="golden_inventory_print.php" target="_blank">
               <i class="fa fa-print text-white"></i> <span>Imprimir / PDF</span>
-            </button>
+            </a>
           </li>
         </ul>
       </div>

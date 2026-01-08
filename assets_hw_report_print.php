@@ -28,6 +28,8 @@ $sqlItems = "
         gi.Brand, 
         gi.Model, 
         gi.SerialNumber, 
+        gi.SerialNumber, 
+        gi.Pedimento,
         gi.Location as MasterLocation,
         gi.Picture as MasterPicture
     FROM assets_hw_audit_items ai
@@ -156,7 +158,7 @@ $dateFormatted = date("d/m/Y H:i", strtotime($audit['AuditDate'] ?: $audit['Star
 
     <div class="header">
         <div>
-            <h1>Reporte de Auditoría: Material Ingenieria</h1>
+            <h1>Reporte de Auditoría: Assets HW</h1>
             <div class="meta">
                 <p><strong>ID:</strong> #<?= h($id) ?></p>
                 <p><strong>Fecha:</strong> <?= h($dateFormatted) ?></p>
@@ -180,6 +182,7 @@ $dateFormatted = date("d/m/Y H:i", strtotime($audit['AuditDate'] ?: $audit['Star
             <tr>
                 <th class="img-cell">Foto</th>
                 <th>ID</th>
+                <th>Asset No</th>
                 <th>Descripción</th>
                 <th>Ubicación</th>
                 <th>Físico</th>
@@ -210,6 +213,7 @@ $dateFormatted = date("d/m/Y H:i", strtotime($audit['AuditDate'] ?: $audit['Star
                     <?php endif; ?>
                 </td>
                 <td><strong><?= h($item['AssetsHWID']) ?></strong></td>
+                <td><small class="font-monospace"><?= h($item['Pedimento']) ?></small></td>
                 <td>
                     <?= h($item['Description']) ?><br>
                     <small style="color:#666;"><?= h($item['Brand']) ?> <?= h($item['Model']) ?></small>
@@ -228,13 +232,13 @@ $dateFormatted = date("d/m/Y H:i", strtotime($audit['AuditDate'] ?: $audit['Star
                         $cls = match($item['ConditionCheck']) {
                             'Good' => 'status-good',
                             'Missing' => 'status-missing',
-                            'Damaged' => 'status-damaged',
+                            'Damaged', 'Damage' => 'status-damaged',
                             default => ''
                         };
                         $lbl = match($item['ConditionCheck']) {
                             'Good' => 'Bueno',
                             'Missing' => 'Faltante',
-                            'Damaged' => 'Dañado',
+                            'Damaged', 'Damage' => 'Dañado',
                             default => $item['ConditionCheck']
                         };
                     ?>
@@ -247,7 +251,7 @@ $dateFormatted = date("d/m/Y H:i", strtotime($audit['AuditDate'] ?: $audit['Star
     </table>
 
     <div style="font-size: 10px; color: #777; border-top: 1px solid #ccc; padding-top: 5px;">
-        <p>Reporte generado el <?= date('d/m/Y H:i:s') ?> por el sistema de Calibraciones.</p>
+        <p>Reporte generado el <?= date('d/m/Y H:i:s') ?> por el sistema de Control de inventario.</p>
     </div>
 
 </body>
