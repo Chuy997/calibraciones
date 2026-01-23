@@ -46,24 +46,12 @@ function active(string $file): string {
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle <?= $instActive ?>"
                href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="fa fa-microscope me-1"></i>Instrumentos de medición
+              <i class="fa fa-microscope me-1"></i>Instrumentos
             </a>
             <ul class="dropdown-menu dropdown-menu-dark">
-              <li>
-                <a class="dropdown-item <?= active('admin.php') ?>" href="admin.php">
-                  <i class="fa fa-screwdriver-wrench me-2"></i>Administrar
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item <?= active('out_of_use.php') ?>" href="out_of_use.php">
-                  <i class="fa fa-box-archive me-2"></i>Fuera de uso
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item <?= active('report.php') ?>" href="report.php">
-                  <i class="fa fa-chart-column me-2"></i>Reportes
-                </a>
-              </li>
+              <li><a class="dropdown-item <?= active('admin.php') ?>" href="admin.php"><i class="fa fa-screwdriver-wrench me-2"></i>Administrar</a></li>
+              <li><a class="dropdown-item <?= active('out_of_use.php') ?>" href="out_of_use.php"><i class="fa fa-box-archive me-2"></i>Fuera de uso</a></li>
+              <li><a class="dropdown-item <?= active('report.php') ?>" href="report.php"><i class="fa fa-chart-column me-2"></i>Reportes</a></li>
             </ul>
           </li>
         <?php endif; ?>
@@ -80,25 +68,15 @@ function active(string $file): string {
               <i class="fa fa-crown me-1"></i>Golden
             </a>
             <ul class="dropdown-menu dropdown-menu-dark">
-              <li>
-                <a class="dropdown-item <?= active('golden_admin.php') ?>" href="golden_admin.php">
-                  <i class="fa fa-clipboard-list me-2"></i>Inventario
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item <?= active('golden_audit.php') ?>" href="golden_audit.php">
-                  <i class="fa fa-clipboard-check me-2"></i>Auditoría
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item <?= active('golden_add.php') ?>" href="golden_add.php">
-                  <i class="fa fa-plus me-2"></i>Nuevo
-                </a>
-              </li>
+              <li><a class="dropdown-item <?= active('golden_admin.php') ?>" href="golden_admin.php"><i class="fa fa-clipboard-list me-2"></i>Inventario</a></li>
+              <li><a class="dropdown-item <?= active('golden_audit.php') ?>" href="golden_audit.php"><i class="fa fa-clipboard-check me-2"></i>Auditoría</a></li>
+              <li><a class="dropdown-item <?= active('golden_add.php') ?>" href="golden_add.php"><i class="fa fa-plus me-2"></i>Nuevo</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item <?= active('golden_scrap.php') ?>" href="golden_scrap.php"><i class="fa fa-dumpster me-2"></i>Scrap</a></li>
             </ul>
           </li>
 
-          <!-- Dropdown Activos Ingenieria (NUEVO) -->
+          <!-- Dropdown Activos Ingenieria -->
           <?php
             $ingPages = ['ingenieria_admin.php','ingenieria_add.php','ingenieria_audit.php','ingenieria_update.php','ingenieria_history.php','ingenieria_scrap.php'];
             $ingActive = in_array($current, $ingPages, true) ? 'active' : '';
@@ -106,30 +84,54 @@ function active(string $file): string {
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle <?= $ingActive ?>"
                href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="fa fa-industry me-1"></i>Activos Ingeniería
+              <i class="fa fa-industry me-1"></i>Ingeniería
             </a>
             <ul class="dropdown-menu dropdown-menu-dark">
-              <li>
-                <a class="dropdown-item <?= active('ingenieria_admin.php') ?>" href="ingenieria_admin.php">
-                  <i class="fa fa-clipboard-list me-2"></i>Inventario
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item <?= active('ingenieria_audit.php') ?>" href="ingenieria_audit.php">
-                  <i class="fa fa-clipboard-check me-2"></i>Auditoría
-                </a>
-              </li>
-              <li>
-                <a class="dropdown-item <?= active('ingenieria_add.php') ?>" href="ingenieria_add.php">
-                  <i class="fa fa-plus me-2"></i>Nuevo
-                </a>
-              </li>
+              <li><a class="dropdown-item <?= active('ingenieria_admin.php') ?>" href="ingenieria_admin.php"><i class="fa fa-clipboard-list me-2"></i>Inventario</a></li>
+              <li><a class="dropdown-item <?= active('ingenieria_audit.php') ?>" href="ingenieria_audit.php"><i class="fa fa-clipboard-check me-2"></i>Auditoría</a></li>
+              <li><a class="dropdown-item <?= active('ingenieria_add.php') ?>" href="ingenieria_add.php"><i class="fa fa-plus me-2"></i>Nuevo</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item <?= active('ingenieria_scrap.php') ?>" href="ingenieria_scrap.php"><i class="fa fa-dumpster me-2"></i>Scrap</a></li>
             </ul>
           </li>
-          <li class="nav-item me-2">
-            <a class="nav-link <?= active('assets_hw_admin.php') ?>" href="assets_hw_admin.php">
-              <i class="fa fa-server me-1"></i> Assets HW
+
+          <!-- Dropdown Assets HW -->
+          <?php
+             $hwPages = ['assets_hw_admin.php','assets_hw_add.php','assets_hw_audit.php','assets_hw_update.php','assets_hw_history.php','assets_hw_scrap.php'];
+             $hwActive = in_array($current, $hwPages, true) ? 'active' : '';
+          ?>
+           <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle <?= $hwActive ?>"
+               href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="fa fa-server me-1"></i>Assets HW
             </a>
+            <ul class="dropdown-menu dropdown-menu-dark">
+              <li><a class="dropdown-item <?= active('assets_hw_admin.php') ?>" href="assets_hw_admin.php"><i class="fa fa-clipboard-list me-2"></i>Inventario</a></li>
+              <li><a class="dropdown-item <?= active('assets_hw_audit.php') ?>" href="assets_hw_audit.php"><i class="fa fa-clipboard-check me-2"></i>Auditoría</a></li>
+              <li><a class="dropdown-item <?= active('assets_hw_add.php') ?>" href="assets_hw_add.php"><i class="fa fa-plus me-2"></i>Nuevo</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item <?= active('assets_hw_scrap.php') ?>" href="assets_hw_scrap.php"><i class="fa fa-dumpster me-2"></i>Scrap</a></li>
+            </ul>
+          </li>
+          
+          <!-- Dropdown Laboratorio (Linpu, Mediciones, Torques) -->
+           <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="fa fa-flask me-1"></i>Laboratorio
+            </a>
+            <ul class="dropdown-menu dropdown-menu-dark">
+              <li><h6 class="dropdown-header">Linpu F1200</h6></li>
+              <li><a class="dropdown-item <?= active('linpu_admin.php') ?>" href="linpu_admin.php"><i class="fa fa-list-check me-2"></i>Registros</a></li>
+              <li><a class="dropdown-item <?= active('linpu_add.php') ?>" href="linpu_add.php"><i class="fa fa-plus me-2"></i>Nuevo</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><h6 class="dropdown-header">Mediciones</h6></li>
+              <li><a class="dropdown-item" href="mediciones/dashboard.php"><i class="fa fa-chart-line me-2"></i>Dashboard</a></li>
+              <li><a class="dropdown-item" href="mediciones/index.html"><i class="fa fa-plus me-2"></i>Nuevo</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><h6 class="dropdown-header">Torques</h6></li>
+              <li><a class="dropdown-item" href="torque/dashboard.php"><i class="fa fa-tachometer-alt me-2"></i>Dashboard</a></li>
+              <li><a class="dropdown-item" href="torque/index.php"><i class="fa fa-list me-2"></i>Registros</a></li>
+            </ul>
           </li>
         <?php endif; ?>
 
@@ -147,6 +149,33 @@ function active(string $file): string {
               <i class="fa fa-magnifying-glass me-1"></i>Consulta
             </a>
           </li>
+          
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="fa fa-boxes-stacked me-1"></i>Inventarios
+            </a>
+            <ul class="dropdown-menu dropdown-menu-dark">
+              <li><a class="dropdown-item <?= active('golden_view.php') ?>" href="golden_view.php"><i class="fa fa-crown me-2"></i>Golden</a></li>
+              <li><a class="dropdown-item <?= active('ingenieria_view.php') ?>" href="ingenieria_view.php"><i class="fa fa-industry me-2"></i>Ingeniería</a></li>
+              <li><a class="dropdown-item <?= active('assets_hw_view.php') ?>" href="assets_hw_view.php"><i class="fa fa-server me-2"></i>Assets HW</a></li>
+            </ul>
+          </li>
+
+          <!-- Dropdown Laboratorio (User) -->
+           <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="fa fa-flask me-1"></i>Laboratorio
+            </a>
+            <ul class="dropdown-menu dropdown-menu-dark">
+              <li><h6 class="dropdown-header">Mediciones</h6></li>
+              <li><a class="dropdown-item" href="mediciones/dashboard.php"><i class="fa fa-chart-line me-2"></i>Dashboard</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><h6 class="dropdown-header">Torques</h6></li>
+              <li><a class="dropdown-item" href="torque/dashboard.php"><i class="fa fa-tachometer-alt me-2"></i>Dashboard</a></li>
+              <li><a class="dropdown-item" href="torque/index.php"><i class="fa fa-list me-2"></i>Registros</a></li>
+            </ul>
+          </li>
+
           <li class="nav-item">
             <a class="nav-link <?= active('report_view.php') ?>" href="report_view.php">
               <i class="fa fa-chart-column me-1"></i>Reportes

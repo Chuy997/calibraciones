@@ -126,7 +126,7 @@ if ($session) {
 
 <div class="row mb-4">
     <div class="col-12">
-        <h1 class="h3 fw-bold">Registro de Scrap (Lotes)</h1>
+        <h1 class="h3 fw-bold">Registro de Scrap </h1>
         <p class="text-secondary">Capture múltiple material para dar de baja y generar un reporte consolidado.</p>
     </div>
 </div>

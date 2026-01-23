@@ -9,27 +9,57 @@ function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES,
 
 $pdo = pdo();
 
-// --- CSV de próximos vencimientos ---
-if (isset($_GET['download'])) {
+// --- CSV de Todos los Instrumentos (Optimizado) ---
+if (isset($_GET['download']) && $_GET['download'] === 'csv') {
+  // Nombre del archivo con fecha
+  $filename = 'inventario_instrumentos_' . date('Y-m-d') . '.csv';
+  
   header('Content-Type: text/csv; charset=UTF-8');
-  header('Content-Disposition: attachment; filename="proximos_vencimientos.csv"');
+  header('Content-Disposition: attachment; filename="' . $filename . '"');
+  
+  // Abrir salida
   $out = fopen('php://output', 'w');
-  fputcsv($out, ['ID','Description','Brand','Model','SerialNumber','DueDate','DaysLeft']);
+  
+  // BOM para Excel
+  fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
+  
+  // Encabezados
+  fputcsv($out, ['ID', 'Descripción', 'Marca', 'Modelo', 'No. Serie', 'Certificado', 'Fecha Cal.', 'Vencimiento', 'Estado', 'Comentarios']);
+  
+  // Query optimizada (todos los instrumentos)
   $sql = "
-    SELECT ID, Description, Brand, Model, SerialNumber,
-           DueDate, DATEDIFF(DueDate, CURRENT_DATE()) AS days_left
+    SELECT 
+      ID, Description, Brand, Model, SerialNumber, CertificateNo,
+      CalDate, DueDate,
+      CASE
+          WHEN CURRENT_DATE() > DueDate THEN 'Vencido'
+          WHEN DueDate BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) THEN 'Próxima calibración'
+          ELSE 'Calibrado'
+      END AS status_calculado,
+      Comments
     FROM instruments
-    WHERE DueDate >= CURRENT_DATE()
-    ORDER BY DueDate ASC
+    ORDER BY ID ASC
   ";
-  foreach ($pdo->query($sql) as $r) {
+  
+  // Streaming directo
+  $stm = $pdo->query($sql);
+  while ($r = $stm->fetch(PDO::FETCH_ASSOC)) {
     fputcsv($out, [
-      (string)$r['ID'], (string)$r['Description'], (string)$r['Brand'],
-      (string)$r['Model'], (string)$r['SerialNumber'],
-      (string)$r['DueDate'], (string)$r['days_left']
+      $r['ID'],
+      $r['Description'],
+      $r['Brand'],
+      $r['Model'],
+      $r['SerialNumber'],
+      $r['CertificateNo'],
+      $r['CalDate'],
+      $r['DueDate'],
+      $r['status_calculado'],
+      $r['Comments']
     ]);
   }
-  fclose($out); exit;
+  
+  fclose($out);
+  exit;
 }
 
 // --- Datos para gráficas y tabla ---
@@ -90,9 +120,14 @@ $pending_data = array_map(fn($m)=>$counts[$m]??0, $pending_labels);
 
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
   <h1 class="h4 m-0">Reportes de calibraciones</h1>
-  <a href="report.php?download=1" class="btn btn-info btn-sm">
-    <i class="fa fa-file-csv me-1"></i> Descargar CSV
-  </a>
+  <div class="d-flex gap-2">
+    <a href="report.php?download=csv" class="btn btn-success btn-sm">
+      <i class="fa fa-file-csv me-1"></i> Descargar CSV
+    </a>
+    <a href="instruments_inventory_print.php" target="_blank" class="btn btn-danger btn-sm">
+      <i class="fa fa-file-pdf me-1"></i> PDF / Imprimir
+    </a>
+  </div>
 </div>
 
 <div class="row g-3 mb-3">
