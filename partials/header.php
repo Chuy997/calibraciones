@@ -59,7 +59,7 @@ function active(string $file): string {
         <?php if ($role === 'admin' || $role === 'ingenieria'): ?>
           <!-- Dropdown Golden -->
           <?php
-            $goldPages = ['golden_admin.php','golden_add.php','golden_audit.php','golden_update.php','golden_history.php','golden_scrap.php'];
+            $goldPages = ['golden_admin.php','golden_add.php','golden_audit.php','golden_update.php','golden_history.php','golden_scrap.php','golden_package_create.php'];
             $goldActive = in_array($current, $goldPages, true) ? 'active' : '';
           ?>
           <li class="nav-item dropdown">
@@ -71,6 +71,7 @@ function active(string $file): string {
               <li><a class="dropdown-item <?= active('golden_admin.php') ?>" href="golden_admin.php"><i class="fa fa-clipboard-list me-2"></i>Inventario</a></li>
               <li><a class="dropdown-item <?= active('golden_audit.php') ?>" href="golden_audit.php"><i class="fa fa-clipboard-check me-2"></i>Auditoría</a></li>
               <li><a class="dropdown-item <?= active('golden_add.php') ?>" href="golden_add.php"><i class="fa fa-plus me-2"></i>Nuevo</a></li>
+              <li><a class="dropdown-item <?= active('golden_package_create.php') ?>" href="golden_package_create.php"><i class="fa fa-box-archive me-2"></i>Crear Paquete</a></li>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item <?= active('golden_scrap.php') ?>" href="golden_scrap.php"><i class="fa fa-dumpster me-2"></i>Scrap</a></li>
             </ul>
@@ -78,7 +79,7 @@ function active(string $file): string {
 
           <!-- Dropdown Activos Ingenieria -->
           <?php
-            $ingPages = ['ingenieria_admin.php','ingenieria_add.php','ingenieria_audit.php','ingenieria_update.php','ingenieria_history.php','ingenieria_scrap.php'];
+            $ingPages = ['ingenieria_admin.php','ingenieria_add.php','ingenieria_audit.php','ingenieria_update.php','ingenieria_history.php','ingenieria_scrap.php','ingenieria_package_create.php'];
             $ingActive = in_array($current, $ingPages, true) ? 'active' : '';
           ?>
           <li class="nav-item dropdown">
@@ -90,6 +91,7 @@ function active(string $file): string {
               <li><a class="dropdown-item <?= active('ingenieria_admin.php') ?>" href="ingenieria_admin.php"><i class="fa fa-clipboard-list me-2"></i>Inventario</a></li>
               <li><a class="dropdown-item <?= active('ingenieria_audit.php') ?>" href="ingenieria_audit.php"><i class="fa fa-clipboard-check me-2"></i>Auditoría</a></li>
               <li><a class="dropdown-item <?= active('ingenieria_add.php') ?>" href="ingenieria_add.php"><i class="fa fa-plus me-2"></i>Nuevo</a></li>
+              <li><a class="dropdown-item <?= active('ingenieria_package_create.php') ?>" href="ingenieria_package_create.php"><i class="fa fa-box-archive me-2"></i>Crear Paquete</a></li>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item <?= active('ingenieria_scrap.php') ?>" href="ingenieria_scrap.php"><i class="fa fa-dumpster me-2"></i>Scrap</a></li>
             </ul>
@@ -97,7 +99,7 @@ function active(string $file): string {
 
           <!-- Dropdown Assets HW -->
           <?php
-             $hwPages = ['assets_hw_admin.php','assets_hw_add.php','assets_hw_audit.php','assets_hw_update.php','assets_hw_history.php','assets_hw_scrap.php'];
+             $hwPages = ['assets_hw_admin.php','assets_hw_add.php','assets_hw_audit.php','assets_hw_update.php','assets_hw_history.php','assets_hw_scrap.php','assets_hw_package_create.php'];
              $hwActive = in_array($current, $hwPages, true) ? 'active' : '';
           ?>
            <li class="nav-item dropdown">
@@ -109,6 +111,7 @@ function active(string $file): string {
               <li><a class="dropdown-item <?= active('assets_hw_admin.php') ?>" href="assets_hw_admin.php"><i class="fa fa-clipboard-list me-2"></i>Inventario</a></li>
               <li><a class="dropdown-item <?= active('assets_hw_audit.php') ?>" href="assets_hw_audit.php"><i class="fa fa-clipboard-check me-2"></i>Auditoría</a></li>
               <li><a class="dropdown-item <?= active('assets_hw_add.php') ?>" href="assets_hw_add.php"><i class="fa fa-plus me-2"></i>Nuevo</a></li>
+              <li><a class="dropdown-item <?= active('assets_hw_package_create.php') ?>" href="assets_hw_package_create.php"><i class="fa fa-box-archive me-2"></i>Crear Paquete</a></li>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item <?= active('assets_hw_scrap.php') ?>" href="assets_hw_scrap.php"><i class="fa fa-dumpster me-2"></i>Scrap</a></li>
             </ul>

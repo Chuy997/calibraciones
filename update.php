@@ -95,7 +95,7 @@ function uploadErrMsg(int $code): string {
 /**
  * Manejar subida validando tamaño/mime/ext. Guarda en $destDir ABSOLUTO.
  * Retorna URL ABSOLUTA web (p.ej. /calibraciones/uploads/ID/archivo.ext) o null si no hay archivo.
- * $kind = 'pdf' | 'img'
+ * $kind = 'pdf' | 'img' | 'pdf_or_img' (para campo que acepta ambos)
  */
 function handleUpload(string $field, string $destDir, string $kind): ?string {
     if (!isset($_FILES[$field]) || $_FILES[$field]['error'] === UPLOAD_ERR_NO_FILE) {
@@ -110,7 +110,51 @@ function handleUpload(string $field, string $destDir, string $kind): ?string {
     $size = (int)($_FILES[$field]['size'] ?? 0);
     $ext  = strtolower(pathinfo($name, PATHINFO_EXTENSION) ?: '');
 
-    if ($kind === 'pdf') {
+    // Detectar MIME type primero
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime  = finfo_file($finfo, $tmp) ?: '';
+    finfo_close($finfo);
+
+    // Si no hay extensión, intentar asignarla basada en MIME type
+    if ($ext === '' || $ext === $kind) {
+        if (stripos($mime, 'pdf') !== false) {
+            $ext = 'pdf';
+        } elseif (stripos($mime, 'jpeg') !== false || stripos($mime, 'jpg') !== false) {
+            $ext = 'jpg';
+        } elseif (stripos($mime, 'png') !== false) {
+            $ext = 'png';
+        } elseif (stripos($mime, 'webp') !== false) {
+            $ext = 'webp';
+        } elseif (stripos($mime, 'heic') !== false || stripos($mime, 'heif') !== false) {
+            $ext = 'heic';
+        }
+    }
+
+    // Validación flexible para campo PDF que acepta también imágenes (para fotos desde móvil)
+    if ($kind === 'pdf_or_img') {
+        $isPdf = stripos($mime, 'pdf') !== false;
+        $isImg = stripos($mime, 'image') !== false;
+        
+        if ($isPdf) {
+            if ($size > MAX_PDF_BYTES) throw new RuntimeException("El PDF excede el tamaño permitido (20MB).");
+            if (!in_array($ext, $GLOBALS['ALLOWED_PDF_EXT'], true)) {
+                throw new RuntimeException("Extensión de PDF no permitida: .$ext");
+            }
+        } elseif ($isImg) {
+            if ($size > MAX_IMG_BYTES) throw new RuntimeException("La imagen excede el tamaño permitido (5MB).");
+            // Aceptar extensiones comunes de móviles, incluyendo jpg sin 'e'
+            $allowedImgExt = ['jpg', 'jpeg', 'png', 'webp', 'heic'];
+            if (!in_array($ext, $allowedImgExt, true)) {
+                throw new RuntimeException("Extensión de imagen no permitida: .$ext (permitidas: " . implode(', ', $allowedImgExt) . ")");
+            }
+            // Intentar validar imagen solo si no es HEIC (que getimagesize no soporta bien)
+            if ($ext !== 'heic' && @getimagesize($tmp) === false) {
+                throw new RuntimeException("El archivo de imagen parece estar corrupto o no es válido.");
+            }
+        } else {
+            throw new RuntimeException("El archivo debe ser un PDF o una imagen. Tipo detectado: $mime, extensión: .$ext");
+        }
+    } elseif ($kind === 'pdf') {
         if ($size > MAX_PDF_BYTES) throw new RuntimeException("El PDF excede el tamaño permitido (20MB).");
         if (!in_array($ext, $GLOBALS['ALLOWED_PDF_EXT'], true)) throw new RuntimeException("Extensión de PDF no permitida.");
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
@@ -180,7 +224,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $destDirAbs  = $projectRoot . '/uploads/' . $id . '/';
 
             // Subir archivos si se enviaron (devuelven URL absolutas)
-            $newPdfUrl     = handleUpload('pdf',     $destDirAbs, 'pdf'); // null si no hay nuevo
+            // PDF ahora acepta también imágenes (para fotos del documento desde móvil)
+            $newPdfUrl     = handleUpload('pdf',     $destDirAbs, 'pdf_or_img'); // null si no hay nuevo
             $newPictureUrl = handleUpload('picture', $destDirAbs, 'img'); // null si no hay nuevo
 
             if ($newPdfUrl !== null)     { $pdfPath     = $newPdfUrl; }
@@ -252,8 +297,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <?php include __DIR__ . '/partials/header.php'; ?>
 
 <div class="row justify-content-center">
-  <div class="col-12 col-lg-8 col-xl-7">
-    <h1 class="h4 my-3">Actualizar instrumento</h1>
+  <div class="col-12 col-lg-10 col-xl-8">
+    <h1 class="h4 my-3 my-md-4">Actualizar instrumento</h1>
 
     <?php if ($errors): ?>
       <div class="alert alert-danger">
@@ -328,42 +373,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     required><?= h($values['comments']) ?></textarea>
         </div>
 
-        <div class="col-md-6">
+        <!-- Documento del Proveedor (PDF o Foto) -->
+        <div class="col-12">
           <label class="form-label d-flex align-items-center justify-content-between">
-            <span>PDF del proveedor</span>
+            <span class="fw-semibold"><i class="fa fa-file-contract me-2"></i>Certificado del Proveedor</span>
             <?php if ($pdfPathView): ?>
               <a href="<?= h($pdfPathView) ?>" target="_blank" class="small text-decoration-none">
-                <i class="fa fa-file-pdf me-1"></i>Ver actual
+                <i class="fa fa-external-link me-1"></i>Ver actual
               </a>
             <?php endif; ?>
           </label>
-          <input type="file" id="pdf" name="pdf" accept="application/pdf" class="form-control">
-          <div class="mt-2 d-none" id="pdfPreviewBox">
-            <iframe id="pdfPreview" title="PDF"
-                    style="width:100%;height:300px;border:1px solid #333;border-radius:8px;"></iframe>
+          <div class="small text-muted mb-2">
+            <i class="fa fa-info-circle me-1"></i>Puedes tomar una foto del certificado o subir un PDF escaneado
+          </div>
+          
+          <!-- Input optimizado para móvil: acepta PDF O foto directa -->
+          <input type="file" id="pdf" name="pdf" 
+                 accept="application/pdf,image/*" 
+                 capture="environment"
+                 class="form-control form-control-lg">
+          
+          <div class="mt-3 d-none" id="pdfPreviewBox">
+            <div class="preview-container">
+              <div id="pdfImagePreview" class="d-none">
+                <img id="pdfAsImage" src="" alt="preview" class="img-fluid rounded shadow-sm"
+                     style="max-height:400px;width:100%;object-fit:contain;border:2px solid #444;">
+              </div>
+              <div id="pdfDocPreview" class="d-none">
+                <iframe id="pdfPreview" title="PDF"
+                        style="width:100%;height:400px;border:2px solid #444;border-radius:8px;"></iframe>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="col-md-6">
+        <!-- Foto del Instrumento -->
+        <div class="col-12 col-md-6">
           <label class="form-label d-flex align-items-center justify-content-between">
-            <span>Foto del instrumento</span>
+            <span class="fw-semibold"><i class="fa fa-camera me-2"></i>Foto del Instrumento</span>
             <?php if ($picturePathView): ?>
               <a href="<?= h($picturePathView) ?>" target="_blank" class="small text-decoration-none">
-                <i class="fa fa-image me-1"></i>Ver actual
+                <i class="fa fa-external-link me-1"></i>Ver actual
               </a>
             <?php endif; ?>
           </label>
-          <input type="file" id="picture" name="picture" accept="image/*" class="form-control">
-          <div class="mt-2 d-none" id="imgPreviewBox">
-            <img id="imgPreview" src="" alt="preview" class="img-fluid rounded"
-                 style="max-height:300px;border:1px solid #333;">
+          <input type="file" id="picture" name="picture" 
+                 accept="image/*" 
+                 capture="environment"
+                 class="form-control form-control-lg">
+          <div class="mt-3 d-none" id="imgPreviewBox">
+            <img id="imgPreview" src="" alt="preview" class="img-fluid rounded shadow-sm"
+                 style="max-height:300px;width:100%;object-fit:cover;border:2px solid #444;">
           </div>
         </div>
       </div>
 
-      <div class="mt-4 d-flex gap-2">
-        <a href="admin.php" class="btn btn-outline-secondary">Cancelar</a>
-        <button type="submit" class="btn btn-primary">
+      <div class="mt-4 d-flex gap-2 flex-column flex-sm-row">
+        <a href="admin.php" class="btn btn-outline-secondary btn-lg">
+          <i class="fa fa-times me-2"></i>Cancelar
+        </a>
+        <button type="submit" class="btn btn-primary btn-lg flex-grow-1">
           <i class="fa fa-save me-2"></i>Guardar cambios
         </button>
       </div>
@@ -420,23 +489,146 @@ if (pictureInput) {
   });
 }
 
-// Vista previa de PDF nuevo
+// Vista previa de PDF nuevo (ahora acepta también imágenes)
 const pdfInput = document.getElementById('pdf');
 if (pdfInput) {
   pdfInput.addEventListener('change', () => {
     const file = pdfInput.files?.[0];
     const box  = document.getElementById('pdfPreviewBox');
+    const imgPreviewDiv = document.getElementById('pdfImagePreview');
+    const pdfPreviewDiv = document.getElementById('pdfDocPreview');
+    const img  = document.getElementById('pdfAsImage');
     const frame= document.getElementById('pdfPreview');
+    
     if (file) {
       const url = URL.createObjectURL(file);
-      frame.src = url;
+      const isPdf = file.type === 'application/pdf';
+      
+      if (isPdf) {
+        // Mostrar PDF en iframe
+        frame.src = url;
+        pdfPreviewDiv.classList.remove('d-none');
+        imgPreviewDiv.classList.add('d-none');
+      } else {
+        // Mostrar imagen (foto del documento)
+        img.src = url;
+        imgPreviewDiv.classList.remove('d-none');
+        pdfPreviewDiv.classList.add('d-none');
+      }
       box.classList.remove('d-none');
     } else {
       frame.src = '';
+      img.src = '';
       box.classList.add('d-none');
     }
   });
 }
 </script>
+
+<!-- Estilos específicos para optimización móvil -->
+<style>
+/* Mejoras para dispositivos móviles */
+@media (max-width: 767px) {
+  /* Aumentar tamaño de inputs para mejor touch */
+  .form-control,
+  .form-control-lg {
+    min-height: 48px;
+    font-size: 16px; /* Evitar zoom en iOS */
+  }
+  
+  .form-label {
+    font-size: 0.95rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  /* Botones más grandes para touch */
+  .btn-lg {
+    min-height: 52px;
+    font-size: 1.1rem;
+    padding: 0.75rem 1.5rem;
+  }
+  
+  /* Espaciado mejorado */
+  .row.g-3 > * {
+    padding-bottom: 1rem;
+  }
+  
+  /* Vista previa optimizada para móvil */
+  #pdfPreviewBox,
+  #imgPreviewBox {
+    margin-top: 1rem;
+  }
+  
+  #pdfAsImage,
+  #imgPreview {
+    max-height: 250px !important;
+  }
+  
+  #pdfPreview {
+    height: 300px !important;
+  }
+  
+  /* Hacer texto de ayuda más visible */
+  .text-muted,
+  .form-text {
+    font-size: 0.85rem;
+  }
+  
+  /* Stack buttons verticalmente en móvil */
+  .flex-column.flex-sm-row {
+    gap: 0.75rem !important;
+  }
+}
+
+/* Mejoras generales para inputs de archivo */
+.form-control[type="file"] {
+  cursor: pointer;
+  padding: 0.75rem;
+}
+
+.form-control[type="file"]::file-selector-button {
+  padding: 0.5rem 1rem;
+  margin-right: 1rem;
+  background-color: #495057;
+  border: 1px solid #6c757d;
+  border-radius: 0.375rem;
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.15s ease-in-out;
+}
+
+.form-control[type="file"]::file-selector-button:hover {
+  background-color: #5a6268;
+}
+
+/* Preview container mejorado */
+.preview-container {
+  background-color: #1a1a1a;
+  padding: 1rem;
+  border-radius: 0.5rem;
+}
+
+/* Indicador visual para archivo seleccionado */
+.form-control[type="file"]:not(:placeholder-shown) {
+  border-color: #0d6efd;
+}
+
+/* Mejorar legibilidad de iconos */
+.fa {
+  vertical-align: middle;
+}
+
+/* Asegurar que labels sean tocables en toda su área */
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Sombras suaves para profundidad visual */
+.shadow-sm {
+  box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.3) !important;
+}
+</style>
 
 <?php include __DIR__ . '/partials/footer.php'; ?>

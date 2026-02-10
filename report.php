@@ -63,7 +63,7 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
 }
 
 // --- Datos para gráficas y tabla ---
-$pie_labels = []; $pie_data = [];
+$pie_labels = []; $pie_data = []; $pie_colors = [];
 $sql1 = "
   SELECT status_calculado, COUNT(*) AS cnt FROM (
     SELECT CASE
@@ -76,8 +76,13 @@ $sql1 = "
   GROUP BY status_calculado
 ";
 foreach ($pdo->query($sql1) as $r) {
-  $pie_labels[] = $r['status_calculado'];
+  $lbl = $r['status_calculado'];
+  $pie_labels[] = $lbl;
   $pie_data[]   = (int)$r['cnt'];
+  // Colores modernos y suaves (Pastel/Chart.js style)
+  if ($lbl === 'Vencido') $pie_colors[] = '#ff6384'; // Rojo suave
+  elseif ($lbl === 'Próxima calibración') $pie_colors[] = '#ffcd56'; // Amarillo suave
+  else $pie_colors[] = '#36a2eb'; // Azul suave (Calibrado)
 }
 
 $rows2 = $pdo->query("
@@ -245,7 +250,10 @@ new Chart(document.getElementById('pieChart'), {
   type: 'pie',
   data: {
     labels: <?= json_encode($pie_labels) ?>,
-    datasets: [{ data: <?= json_encode($pie_data) ?> }]
+    datasets: [{ 
+      data: <?= json_encode($pie_data) ?>,
+      backgroundColor: <?= json_encode($pie_colors) ?>
+    }]
   },
   options: {
     responsive: true,

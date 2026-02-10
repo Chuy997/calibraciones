@@ -37,6 +37,7 @@ $rows = pdo()->query($sql)->fetchAll();
   <h1 class="h4 m-0">Golden – Inventario</h1>
   <div class="d-flex gap-2">
     <a class="btn btn-primary" href="golden_audit.php"><i class="fa fa-clipboard-check me-1"></i> Auditar</a>
+    <a class="btn btn-info text-white" href="golden_packages.php"><i class="fa fa-box-open me-1"></i> Paquetes</a>
     <a class="btn btn-success" href="golden_add.php"><i class="fa fa-plus me-1"></i> Nuevo</a>
     <a class="btn btn-danger" href="golden_scrap_session.php"><i class="fa fa-boxes-packing me-1"></i> Scrap Lotes</a>
   </div>
