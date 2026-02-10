@@ -288,7 +288,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <i class="fa fa-flask"></i>
                 </div>
                 <h2>Test Instruments</h2>
-                <p class="login-subtitle">Sistema de gestión de calibraciones</p>
+                <p class="login-subtitle">Sistema de gestión de activos</p>
             </div>
             
             <form method="post" action="">
@@ -296,7 +296,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 <div class="form-row">
                     <label for="username">
-                        <i class="fa fa-user me-1"></i>Usuario
+                        <i class="fa fa-user me-1"></i> Usuario
                     </label>
                     <div class="input-wrapper">
                         <input type="text" id="username" name="username" autocomplete="username" required autofocus>
@@ -306,7 +306,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 <div class="form-row">
                     <label for="password">
-                        <i class="fa fa-lock me-1"></i>Contraseña
+                        <i class="fa fa-lock me-1"></i> Contraseña
                     </label>
                     <div class="input-wrapper">
                         <input type="password" id="password" name="password" autocomplete="current-password" required>
@@ -315,7 +315,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 
                 <button type="submit" class="btn">
-                    <i class="fa fa-right-to-bracket me-2"></i>Iniciar Sesión
+                    <i class="fa fa-right-to-bracket me-2"></i> Iniciar Sesión
                 </button>
                 
                 <?php if ($error): ?>
