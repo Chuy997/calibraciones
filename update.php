@@ -60,6 +60,7 @@ $picturePathView = $norm($picturePath);
 $values = [
   'calDate'  => (string)($instrument['CalDate'] ?? ''),
   'dueDate'  => (string)($instrument['DueDate'] ?? ''), // será recalculado por servidor
+  'location' => (string)($instrument['Location'] ?? ''),
   'comments' => (string)($instrument['Comments'] ?? ''),
 ];
 
@@ -201,6 +202,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Recoger SOLO campos permitidos
     $values['calDate']  = trim($_POST['calDate']  ?? '');
+    $values['location'] = trim($_POST['location'] ?? '');
     $values['comments'] = trim($_POST['comments'] ?? '');
 
     // Validaciones
@@ -242,7 +244,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                        Status   = :Status,
                        Comments = :Comments,
                        PdfPath  = :PdfPath,
-                       Picture  = :Picture
+                       Picture  = :Picture,
+                       Location = :Location
                  WHERE ID = :ID
             ");
             $upd->execute([
@@ -252,6 +255,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':Comments' => $values['comments'],
                 ':PdfPath'  => $pdfPath   ?: null,
                 ':Picture'  => $picturePath ?: null,
+                ':Location' => $values['location'],
                 ':ID'       => $id,
             ]);
 
@@ -367,11 +371,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <div class="form-text">Se actualizará automáticamente según el vencimiento.</div>
         </div>
 
-        <div class="col-12">
-          <label for="comments" class="form-label">Comentarios</label>
-          <textarea id="comments" name="comments" class="form-control" rows="3"
-                    required><?= h($values['comments']) ?></textarea>
-        </div>
+          <div class="col-12">
+            <label for="location" class="form-label">
+              <i class="fa fa-location-dot me-1"></i>Ubicación
+            </label>
+            <input type="text" id="location" name="location" class="form-control form-control-lg"
+                   value="<?= h($values['location']) ?>" placeholder="Ej: Laboratorio A, Sala 3">
+            <small class="text-muted">Ubicación física del instrumento</small>
+          </div>
+
+          <div class="col-12">
+            <label for="comments" class="form-label">
+              <i class="fa fa-comment me-1"></i>Comentarios
+            </label>
+            <textarea id="comments" name="comments" class="form-control" rows="4" required><?= h($values['comments']) ?></textarea>
+          </div>
 
         <!-- Documento del Proveedor (PDF o Foto) -->
         <div class="col-12">

@@ -22,6 +22,160 @@ function active(string $file): string {
 
   <!-- App styles (mantiene proporciones de tus tablas) -->
   <link href="assets/app.css?v=1" rel="stylesheet">
+  
+  <style>
+    /* Modern Header Styles */
+    .app-navbar {
+      background: rgba(27, 29, 35, 0.8);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+    
+    .navbar-brand {
+      font-size: 1.25rem;
+      font-weight: 600;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      transition: all 0.3s ease;
+    }
+    
+    .navbar-brand:hover {
+      transform: scale(1.02);
+    }
+    
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      filter: drop-shadow(0 2px 8px rgba(102, 126, 234, 0.3));
+    }
+    
+    .nav-link {
+      position: relative;
+      font-weight: 500;
+      font-size: 0.9rem;
+      padding: 0.5rem 1rem !important;
+      transition: all 0.3s ease;
+      border-radius: 8px;
+    }
+    
+    .nav-link::before {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      width: 0;
+      height: 2px;
+      background: linear-gradient(90deg, #667eea, #764ba2);
+      transform: translateX(-50%);
+      transition: width 0.3s ease;
+    }
+    
+    .nav-link:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff !important;
+    }
+    
+    .nav-link:hover::before {
+      width: 80%;
+    }
+    
+    .nav-link.active {
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+      color: #a78bfa !important;
+      box-shadow: 0 0 20px rgba(102, 126, 234, 0.2);
+    }
+    
+    .dropdown-menu {
+      background: rgba(27, 29, 35, 0.95);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      padding: 0.5rem;
+      margin-top: 0.5rem !important;
+    }
+    
+    .dropdown-item {
+      border-radius: 8px;
+      padding: 0.6rem 1rem;
+      transition: all 0.2s ease;
+      font-size: 0.9rem;
+    }
+    
+    .dropdown-item:hover {
+      background: rgba(102, 126, 234, 0.15);
+      color: #fff;
+      transform: translateX(4px);
+    }
+    
+    .dropdown-item.active {
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+      color: #a78bfa;
+    }
+    
+    .dropdown-header {
+      color: #8b92a7;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 0.5rem 1rem 0.25rem 1rem;
+    }
+    
+    .dropdown-divider {
+      border-color: rgba(255, 255, 255, 0.08);
+      margin: 0.5rem 0;
+    }
+    
+    .navbar-toggler {
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+    }
+    
+    .navbar-toggler:focus {
+      box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+    
+    .btn-outline-light {
+      border-radius: 8px;
+      font-weight: 500;
+      border-color: rgba(255, 255, 255, 0.15);
+      transition: all 0.3s ease;
+    }
+    
+    .btn-outline-light:hover {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-color: transparent;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+      transform: translateY(-1px);
+    }
+    
+    .user-info {
+      font-size: 0.85rem;
+      padding: 0.4rem 0.8rem;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    @media (max-width: 991px) {
+      .dropdown-menu {
+        border: none;
+        background: rgba(255, 255, 255, 0.03);
+        margin-top: 0.25rem !important;
+      }
+      
+      .navbar-collapse {
+        padding-top: 1rem;
+      }
+    }
+  </style>
 </head>
 <body>
 <nav class="navbar navbar-expand-lg app-navbar border-bottom">
@@ -187,10 +341,10 @@ function active(string $file): string {
         <?php endif; ?>
       </ul>
       <div class="d-flex align-items-center gap-3">
-        <span class="text-secondary small">
+        <span class="user-info text-secondary">
           <i class="fa fa-user-circle me-1"></i>
           <?= htmlspecialchars($_SESSION['username'] ?? 'usuario', ENT_QUOTES, 'UTF-8'); ?>
-          — <?= htmlspecialchars($_SESSION['role'] ?? 'consulta', ENT_QUOTES, 'UTF-8'); ?>
+          <span class="d-none d-lg-inline">— <?= htmlspecialchars($_SESSION['role'] ?? 'consulta', ENT_QUOTES, 'UTF-8'); ?></span>
         </span>
         <a href="logout.php" class="btn btn-outline-light btn-sm">
           <i class="fa fa-right-from-bracket me-1"></i>Salir

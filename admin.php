@@ -14,6 +14,7 @@ SELECT
     i.Brand,
     i.Model,
     i.SerialNumber,
+    i.Location,
     i.CalDate,
     i.DueDate,
     (
@@ -164,6 +165,13 @@ function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES,
             <span class="spec-label">Serie:</span>
             <span class="spec-value"><?= h($r['SerialNumber']) ?></span>
           </div>
+          <?php if (!empty($r['Location'])): ?>
+          <div class="spec-item">
+            <i class="fa fa-location-dot text-info me-1"></i>
+            <span class="spec-label">Ubicación:</span>
+            <span class="spec-value"><?= h($r['Location']) ?></span>
+          </div>
+          <?php endif; ?>
         </div>
         
         <div class="card-dates">
