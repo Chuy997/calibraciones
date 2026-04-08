@@ -26,8 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 session_regenerate_id(true);
 
                 // Redirección por rol
-                if ($user['role'] === 'admin') {
-                    header('Location: index.php'); // dashboard
+                if ($user['role'] === 'golden_consulta') {
+                    header('Location: golden_admin.php');
                 } else {
                     header('Location: index.php'); // o a consulta.php si luego reactivamos esa vista
                 }

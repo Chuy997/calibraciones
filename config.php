@@ -106,4 +106,14 @@ function require_auth(string|array|null $role=null): void {
             }
         }
     }
+    
+    // Bloquear accesos del rol golden_consulta a otras pantallas
+    if (($_SESSION['role'] ?? '') === 'golden_consulta') {
+        $allowedFiles = ['golden_admin.php', 'golden_export.php', 'golden_inventory_print.php', 'golden_history.php', 'logout.php'];
+        $currentFile = basename($_SERVER['PHP_SELF']);
+        if (!in_array($currentFile, $allowedFiles, true)) {
+            header('Location: golden_admin.php');
+            exit();
+        }
+    }
 }

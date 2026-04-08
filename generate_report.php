@@ -6,17 +6,15 @@ error_reporting(E_ALL);
 require 'config.php';
 
     function generateMonthlyReport($month, $year) {
-    $conn = getConnection('admin');
+    $pdo = pdo();
 
     $firstDayOfMonth = sprintf('%04d-%02d-01', $year, $month);
     $lastDayOfMonth  = date("Y-m-t", strtotime($firstDayOfMonth));
 
     // Preparamos y ejecutamos la consulta
-    $sql  = "SELECT * FROM instruments WHERE duedate BETWEEN ? AND ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ss", $firstDayOfMonth, $lastDayOfMonth);
-    $stmt->execute();
-    $result = $stmt->get_result();
+    $sql  = "SELECT ID, Description, Brand, Model, SerialNumber, HW_ZL, CalDate, DueDate, DaysCounter, Comments FROM instruments WHERE DueDate BETWEEN ? AND ?";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$firstDayOfMonth, $lastDayOfMonth]);
 
     // Nombre y ruta del CSV en tmp
     $filename = sprintf('reporte_calibraciones_%04d_%02d.csv', $year, $month);
@@ -33,13 +31,23 @@ require 'config.php';
     fputcsv($file, $headers);
 
     // Filas
-    while ($row = $result->fetch_assoc()) {
-        fputcsv($file, $row);
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $csvRow = [
+            $row['ID'] ?? '',
+            $row['Description'] ?? '',
+            $row['Brand'] ?? '',
+            $row['Model'] ?? '',
+            $row['SerialNumber'] ?? '',
+            $row['HW_ZL'] ?? '',
+            $row['CalDate'] ?? '',
+            $row['DueDate'] ?? '',
+            $row['DaysCounter'] ?? '',
+            $row['Comments'] ?? ''
+        ];
+        fputcsv($file, $csvRow);
     }
 
     fclose($file);
-    $stmt->close();
-    $conn->close();
 
     return $filePath;
 }

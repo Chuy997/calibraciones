@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/config.php';
-require_auth(['admin','ingenieria']);
+require_auth(['admin','ingenieria','golden_consulta']);
 
 // Helpers
 function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }

@@ -300,7 +300,13 @@ function active(string $file): string {
           </li>
         <?php endif; ?>
 
-        <?php if ($role !== 'admin' && $role !== 'ingenieria'): ?>
+        <?php if ($role === 'golden_consulta'): ?>
+          <li class="nav-item">
+            <a class="nav-link <?= active('golden_admin.php') ?>" href="golden_admin.php">
+              <i class="fa fa-crown me-1"></i>Golden Inventario
+            </a>
+          </li>
+        <?php elseif ($role !== 'admin' && $role !== 'ingenieria'): ?>
           <li class="nav-item">
             <a class="nav-link <?= active('consulta_dashboard.php') ?>" href="consulta_dashboard.php">
               <i class="fa fa-magnifying-glass me-1"></i>Consulta

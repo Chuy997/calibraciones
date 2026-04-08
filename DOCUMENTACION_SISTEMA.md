@@ -24,16 +24,17 @@ El sistema implementa un control de acceso basado en roles (RBAC) simple:
 
 ---
 
-## 2. Módulo de Instrumentos Generales
+## 2. Módulo de Instrumentos de Medición
 
 Este módulo gestiona el inventario activo de equipos de medición (multímetros, osciloscopios, torquímetros, etc.) y su estado de calibración.
 
-### 2.1 Ciclo de Vida del Instrumento
-1.  **Alta (`add.php`)**: Registro inicial con ID manual (ej. `DU7310`), datos técnicos y carga de certificado (PDF) y foto.
-2.  **Seguimiento (`admin.php`)**: Monitoreo de fechas de vencimiento.
-3.  **Actualización (`update.php`)**: Renovación de calibración.
+### 2.1 Ciclo de Vida y Registro de Calibraciones
+1.  **Alta (`add.php`)**: Registro inicial con ID manual (ej. `DU7310`), datos técnicos y carga de la primera calibración, certificado (PDF) y foto.
+2.  **Seguimiento (`admin.php`)**: Monitoreo de fechas de vencimiento de las calibraciones.
+3.  **Actualización y Registro de Calibración (`update.php` y `history.php`)**: Renovación de la calibración del equipo.
+    -   *Registro Histórico inmutable*: Cada vez que se registra una nueva calibración en `update.php`, el sistema genera automáticamente un registro en la tabla `updatehistory`. Todo el historial de calibraciones de un equipo se consulta en la vista **Historial de instrumento** (`history.php`), garantizando la trazabilidad histórica de los certificados en el tiempo.
     -   *Regla de Negocio*: Al ingresar una nueva `CalDate`, el sistema calcula automáticamente la `DueDate` a **+1 año**.
-    -   *Regla de Negocio*: El estado se actualiza automáticamente a `calibrado` o `fuera de calibracion` según la fecha actual.
+    -   *Regla de Negocio*: El estado del instrumento se actualiza automáticamente a `calibrado` o `fuera de calibracion` de acuerdo con la fecha actual.
 4.  **Baja (`move_out_of_use.php`)**: Retiro del instrumento a la tabla histórica `instrumentsoutofuse`.
 5.  **Reactivación (`return_to_active.php`)**: Retorno de un instrumento dado de baja al inventario activo.
 

@@ -17,14 +17,7 @@ SELECT
     i.Location,
     i.CalDate,
     i.DueDate,
-    (
-        SELECT uh.PdfPath
-        FROM updatehistory uh
-        WHERE uh.InstrumentID = i.ID
-          AND uh.PdfPath IS NOT NULL
-        ORDER BY uh.UpdatedAt DESC
-        LIMIT 1
-    ) AS LastPdfPath,
+    i.PdfPath AS CurrentPdf,
     i.Comments,
     CASE
         WHEN CURRENT_DATE() > i.DueDate THEN 'Vencido'
@@ -37,6 +30,30 @@ SQL;
 
 $stmt = pdo()->query($sql);
 $rows = $stmt->fetchAll();
+
+// Obtener todo el historial de PDFs para el dropdown multipdf
+$pdfSql = "
+SELECT InstrumentID, PdfPath, MAX(UpdatedAt) as LastUpdate
+FROM updatehistory
+WHERE PdfPath IS NOT NULL AND PdfPath != ''
+GROUP BY InstrumentID, PdfPath
+ORDER BY LastUpdate DESC
+";
+$pdfStmt = pdo()->query($pdfSql);
+$allPdfs = [];
+foreach ($pdfStmt->fetchAll() as $p) {
+    if (!isset($allPdfs[$p['InstrumentID']])) {
+        $allPdfs[$p['InstrumentID']] = [];
+    }
+    $path = $p['PdfPath'];
+    if (!str_starts_with($path, '/')) {
+        $path = '/' . ltrim($path, '/');
+    }
+    $allPdfs[$p['InstrumentID']][] = [
+        'path' => $path,
+        'date' => substr((string)$p['LastUpdate'], 0, 10)
+    ];
+}
 
 function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 ?>
@@ -190,11 +207,44 @@ function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES,
       
       <!-- Card Footer con Acciones -->
       <div class="card-footer-actions">
-        <?php if (!empty($r['LastPdfPath'])): ?>
-          <a href="<?= h($r['LastPdfPath']) ?>" target="_blank" 
+        <?php 
+          $pdfs = $allPdfs[$r['ID']] ?? [];
+          if (!empty($r['CurrentPdf'])) {
+              $curr = $r['CurrentPdf'];
+              if (!str_starts_with($curr, '/')) $curr = '/' . ltrim($curr, '/');
+              $found = false;
+              foreach ($pdfs as $p) {
+                  if ($p['path'] === $curr) { $found = true; break; }
+              }
+              if (!$found) {
+                  array_unshift($pdfs, ['path' => $curr, 'date' => $r['CalDate']]);
+              }
+          }
+        ?>
+        <?php if (count($pdfs) === 1): ?>
+          <a href="<?= h($pdfs[0]['path']) ?>" target="_blank" 
              class="btn btn-sm btn-outline-light" title="Ver PDF">
             <i class="fa fa-file-pdf me-1"></i>PDF
           </a>
+        <?php elseif (count($pdfs) > 1): ?>
+          <div class="dropdown">
+            <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="fa fa-file-pdf me-1"></i>PDFs (<?= count($pdfs) ?>)
+            </button>
+            <ul class="dropdown-menu dropdown-menu-dark shadow">
+              <?php foreach ($pdfs as $index => $pdf): ?>
+                <li>
+                  <a class="dropdown-item d-flex align-items-center justify-content-between" href="<?= h($pdf['path']) ?>" target="_blank">
+                    <span>
+                      <i class="fa fa-file-pdf me-2 text-danger"></i>
+                      <?= $index === 0 ? 'Más reciente' : 'Anterior ' . $index ?>
+                    </span>
+                    <small class="text-secondary ms-3"><?= h($pdf['date']) ?></small>
+                  </a>
+                </li>
+              <?php endforeach; ?>
+            </ul>
+          </div>
         <?php endif; ?>
         
         <div class="action-buttons ms-auto">
@@ -309,7 +359,6 @@ if (searchInput && allCards.length > 0) {
 .instrument-card {
   background: linear-gradient(145deg, #1a1d23 0%, #2d3139 100%);
   border-radius: 16px;
-  overflow: hidden;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3),
               0 1px 3px rgba(0, 0, 0, 0.2);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -332,6 +381,7 @@ if (searchInput && allCards.length > 0) {
   height: 200px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   overflow: hidden;
+  border-radius: 16px 16px 0 0;
 }
 
 .card-img {
@@ -467,6 +517,7 @@ if (searchInput && allCards.length > 0) {
   padding: 1rem 1.25rem;
   background: rgba(0, 0, 0, 0.2);
   border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 0 0 16px 16px;
   display: flex;
   align-items: center;
   gap: 0.75rem;
