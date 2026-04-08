@@ -325,7 +325,7 @@ include __DIR__.'/partials/header.php';
 <?php elseif ($msg === 'error_validation'): ?>
     <div class="alert alert-danger alert-dismissible fade show my-3 shadow-sm">
         <i class="fa fa-circle-xmark me-2"></i><b>No se puede finalizar:</b><br>
-        <?= $_GET['details'] ?? 'Faltan fotos nuevas.' ?>
+        <?= htmlspecialchars($_GET['details'] ?? 'Faltan fotos nuevas.', ENT_QUOTES, 'UTF-8') ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 <?php endif; ?>
