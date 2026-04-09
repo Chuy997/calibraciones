@@ -88,7 +88,7 @@ if ($action === 'close_session' && $session) {
         $pdo->beginTransaction();
         
         // Fetch all items with GoldenID
-        $items = $pdo->query("SELECT * FROM golden_scrap_batch_items WHERE BatchID=".$session['BatchID']." AND GoldenID IS NOT NULL AND GoldenID != ''")->fetchAll();
+        $items = $pdo->query("SELECT * FROM golden_scrap_batch_items WHERE BatchID=".((int)$session['BatchID'])." AND GoldenID IS NOT NULL AND GoldenID != ''")->fetchAll();
         
         $updItem = $pdo->prepare("UPDATE golden_items SET Status='Scrap', Comments=CONCAT(COALESCE(Comments,''), '\n[Scrap Batch #".$session['BatchID']."] ', ?) WHERE ID=?");
         $insHist = $pdo->prepare("INSERT INTO golden_history (GoldenID, Action, Status, Comments, CreatedAt) VALUES (?, 'scrap', 'Scrap', ?, NOW())");

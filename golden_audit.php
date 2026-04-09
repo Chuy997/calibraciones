@@ -44,12 +44,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'create_draft') {
 
 // 2. SAVE AUDIT
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_audit') {
-    $auditId = $_POST['audit_id'] ?? null;
+    $auditId = (int)($_POST['audit_id'] ?? 0);
     $status  = $_POST['status_target'] ?? 'Open';
     $comments= $_POST['audit_comments'] ?? '';
     $items   = $_POST['items'] ?? [];
 
-    if (!$auditId) die("ID Inválido");
+    if ($auditId <= 0) die("ID Inválido");
 
     // DEBUG: Comprehensive logging
     $debugLog = "=== SAVE AUDIT DEBUG ===\n";
@@ -412,7 +412,7 @@ include __DIR__.'/partials/header.php';
 
 <!-- ================= EDIT VIEW ================= -->
 <?php elseif ($action === 'edit'): 
-    $id = $_GET['id'] ?? 0;
+    $id = (int)($_GET['id'] ?? 0);
     try {
         // Fetch Audit Header
         $auditRow = $pdo->query("SELECT * FROM golden_audits WHERE AuditID=$id")->fetch();
