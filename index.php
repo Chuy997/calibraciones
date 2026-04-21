@@ -258,6 +258,50 @@ function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES,
     </div>
   </div>
 
+  <!-- ADMIN: Mantenimientos de Maquinaria -->
+  <div class="dashboard-section-title">
+    <i class="fa fa-gears"></i>
+    Mantenimientos de Maquinaria
+  </div>
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="modern-card modern-card--warning">
+        <div class="card-icon" style="--accent-rgb: 245, 158, 11;">
+          <i class="fa fa-clipboard-list"></i>
+        </div>
+        <h3>Panel de Equipos</h3>
+        <p>Visualiza el estado de mantenimiento de toda la maquinaria.</p>
+        <a href="mant_equipos_admin.php" class="modern-btn modern-btn-primary w-100">
+          <i class="fa fa-arrow-right me-2"></i>Ver equipos
+        </a>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="modern-card modern-card--warning">
+        <div class="card-icon" style="--accent-rgb: 245, 158, 11;">
+          <i class="fa fa-plus"></i>
+        </div>
+        <h3>Registrar Equipo</h3>
+        <p>Alta de nueva maquinaria con su período de mantenimiento.</p>
+        <a href="mant_equipos_add.php" class="modern-btn modern-btn-outline w-100">
+          <i class="fa fa-plus me-2"></i>Nuevo equipo
+        </a>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="modern-card modern-card--warning">
+        <div class="card-icon" style="--accent-rgb: 245, 158, 11;">
+          <i class="fa fa-chart-column"></i>
+        </div>
+        <h3>Reportes</h3>
+        <p>Análisis gráfico y tabla de próximos mantenimientos.</p>
+        <a href="mant_equipos_report.php" class="modern-btn modern-btn-outline w-100">
+          <i class="fa fa-arrow-right me-2"></i>Ver reportes
+        </a>
+      </div>
+    </div>
+  </div>
+
   <!-- ADMIN: Golden -->
   <div class="dashboard-section-title">
     <i class="fa fa-crown"></i>
@@ -462,6 +506,149 @@ function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES,
             <i class="fa fa-list me-2"></i>Registros
           </a>
         </div>
+      </div>
+    </div>
+  </div>
+
+<?php elseif ($role === 'ingenieria'): ?>
+  <!-- INGENIERIA: Mantenimientos de Maquinaria -->
+  <div class="dashboard-section-title">
+    <i class="fa fa-gears"></i>
+    Mantenimientos de Maquinaria
+  </div>
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="modern-card modern-card--warning">
+        <div class="card-icon" style="--accent-rgb: 245, 158, 11;">
+          <i class="fa fa-clipboard-list"></i>
+        </div>
+        <h3>Panel de Equipos</h3>
+        <p>Visualiza el estado de mantenimiento de toda la maquinaria.</p>
+        <a href="mant_equipos_admin.php" class="modern-btn modern-btn-primary w-100">
+          <i class="fa fa-arrow-right me-2"></i>Ver equipos
+        </a>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="modern-card modern-card--warning">
+        <div class="card-icon" style="--accent-rgb: 245, 158, 11;">
+          <i class="fa fa-plus"></i>
+        </div>
+        <h3>Registrar Equipo</h3>
+        <p>Alta de nueva maquinaria con su período de mantenimiento.</p>
+        <a href="mant_equipos_add.php" class="modern-btn modern-btn-outline w-100">
+          <i class="fa fa-plus me-2"></i>Nuevo equipo
+        </a>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="modern-card modern-card--warning">
+        <div class="card-icon" style="--accent-rgb: 245, 158, 11;">
+          <i class="fa fa-chart-column"></i>
+        </div>
+        <h3>Reportes</h3>
+        <p>Análisis gráfico y tabla de próximos mantenimientos.</p>
+        <a href="mant_equipos_report.php" class="modern-btn modern-btn-outline w-100">
+          <i class="fa fa-arrow-right me-2"></i>Ver reportes
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- INGENIERIA: Activos Ingeniería -->
+  <div class="dashboard-section-title">
+    <i class="fa fa-industry"></i>
+    Activos Ingeniería
+  </div>
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="modern-card modern-card--primary">
+        <div class="card-icon" style="--accent-rgb: 102, 126, 234;">
+          <i class="fa fa-clipboard-list"></i>
+        </div>
+        <h3>Inventario</h3>
+        <p>Gestión de activos generales de ingeniería.</p>
+        <div class="d-grid gap-2">
+          <a href="ingenieria_admin.php" class="modern-btn modern-btn-primary btn-sm">
+            <i class="fa fa-arrow-right me-2"></i>Inventario
+          </a>
+          <a href="ingenieria_scrap.php" class="modern-btn modern-btn-outline btn-sm">
+            <i class="fa fa-dumpster me-2"></i>Ver Scrap
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="modern-card modern-card--primary">
+        <div class="card-icon" style="--accent-rgb: 102, 126, 234;">
+          <i class="fa fa-clipboard-check"></i>
+        </div>
+        <h3>Auditoría</h3>
+        <p>Auditoría de activos generales.</p>
+        <a href="ingenieria_audit.php" class="modern-btn modern-btn-outline w-100">
+          <i class="fa fa-play me-2"></i>Iniciar auditoría
+        </a>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="modern-card modern-card--primary">
+        <div class="card-icon" style="--accent-rgb: 102, 126, 234;">
+          <i class="fa fa-plus"></i>
+        </div>
+        <h3>Nuevo</h3>
+        <p>Alta de nuevo activo.</p>
+        <a href="ingenieria_add.php" class="modern-btn modern-btn-outline w-100">
+          <i class="fa fa-plus me-2"></i>Registrar
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- INGENIERIA: Assets HW -->
+  <div class="dashboard-section-title">
+    <i class="fa fa-server"></i>
+    Assets HW
+  </div>
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="modern-card modern-card--info">
+        <div class="card-icon" style="--accent-rgb: 59, 130, 246;">
+          <i class="fa fa-clipboard-list"></i>
+        </div>
+        <h3>Inventario</h3>
+        <p>Hardware, servidores y equipos IT.</p>
+        <div class="d-grid gap-2">
+          <a href="assets_hw_admin.php" class="modern-btn modern-btn-primary btn-sm">
+            <i class="fa fa-arrow-right me-2"></i>Inventario
+          </a>
+          <a href="assets_hw_scrap.php" class="modern-btn modern-btn-outline btn-sm">
+            <i class="fa fa-dumpster me-2"></i>Ver Scrap
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="modern-card modern-card--info">
+        <div class="card-icon" style="--accent-rgb: 59, 130, 246;">
+          <i class="fa fa-clipboard-check"></i>
+        </div>
+        <h3>Auditoría</h3>
+        <p>Control de inventario IT.</p>
+        <a href="assets_hw_audit.php" class="modern-btn modern-btn-outline w-100">
+          <i class="fa fa-play me-2"></i>Iniciar auditoría
+        </a>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="modern-card modern-card--info">
+        <div class="card-icon" style="--accent-rgb: 59, 130, 246;">
+          <i class="fa fa-plus"></i>
+        </div>
+        <h3>Nuevo</h3>
+        <p>Registrar nuevo hardware.</p>
+        <a href="assets_hw_add.php" class="modern-btn modern-btn-outline w-100">
+          <i class="fa fa-plus me-2"></i>Registrar
+        </a>
       </div>
     </div>
   </div>

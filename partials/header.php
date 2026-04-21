@@ -208,10 +208,11 @@ function active(string $file): string {
               <li><a class="dropdown-item <?= active('report.php') ?>" href="report.php"><i class="fa fa-chart-column me-2"></i>Reportes</a></li>
             </ul>
           </li>
+
         <?php endif; ?>
 
-        <?php if ($role === 'admin' || $role === 'ingenieria'): ?>
-          <!-- Dropdown Golden -->
+        <?php if ($role === 'admin'): ?>
+          <!-- Dropdown Golden (solo admin) -->
           <?php
             $goldPages = ['golden_admin.php','golden_add.php','golden_audit.php','golden_update.php','golden_history.php','golden_scrap.php','golden_package_create.php'];
             $goldActive = in_array($current, $goldPages, true) ? 'active' : '';
@@ -228,6 +229,25 @@ function active(string $file): string {
               <li><a class="dropdown-item <?= active('golden_package_create.php') ?>" href="golden_package_create.php"><i class="fa fa-box-archive me-2"></i>Crear Paquete</a></li>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item <?= active('golden_scrap.php') ?>" href="golden_scrap.php"><i class="fa fa-dumpster me-2"></i>Scrap</a></li>
+            </ul>
+          </li>
+        <?php endif; ?>
+
+        <?php if ($role === 'admin' || $role === 'ingenieria'): ?>
+          <!-- Dropdown Mantenimientos de Maquinaria -->
+          <?php
+            $mantPages = ['mant_equipos_admin.php','mant_equipos_add.php','mant_equipos_update.php','mant_equipos_history.php','mant_equipos_report.php'];
+            $mantActive = in_array($current, $mantPages, true) ? 'active' : '';
+          ?>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle <?= $mantActive ?>"
+               href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="fa fa-gears me-1"></i>Mantenimientos
+            </a>
+            <ul class="dropdown-menu dropdown-menu-dark">
+              <li><a class="dropdown-item <?= active('mant_equipos_admin.php') ?>" href="mant_equipos_admin.php"><i class="fa fa-clipboard-list me-2"></i>Panel de equipos</a></li>
+              <li><a class="dropdown-item <?= active('mant_equipos_add.php') ?>" href="mant_equipos_add.php"><i class="fa fa-plus me-2"></i>Registrar equipo</a></li>
+              <li><a class="dropdown-item <?= active('mant_equipos_report.php') ?>" href="mant_equipos_report.php"><i class="fa fa-chart-column me-2"></i>Reportes</a></li>
             </ul>
           </li>
 
@@ -270,8 +290,10 @@ function active(string $file): string {
               <li><a class="dropdown-item <?= active('assets_hw_scrap.php') ?>" href="assets_hw_scrap.php"><i class="fa fa-dumpster me-2"></i>Scrap</a></li>
             </ul>
           </li>
-          
-          <!-- Dropdown Laboratorio (Linpu, Mediciones, Torques) -->
+        <?php endif; ?>
+
+        <?php if ($role === 'admin'): ?>
+          <!-- Dropdown Laboratorio (Linpu, Mediciones, Torques) - solo admin -->
            <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <i class="fa fa-flask me-1"></i>Laboratorio
@@ -291,6 +313,7 @@ function active(string $file): string {
             </ul>
           </li>
         <?php endif; ?>
+
 
         <?php if ($role === 'admin'): ?>
           <li class="nav-item">

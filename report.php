@@ -109,6 +109,16 @@ foreach ($pdo->query("
   GROUP BY mes ORDER BY mes
 ") as $r) { $counts[$r['mes']] = (int)$r['cnt']; }
 $pending_data = array_map(fn($m)=>$counts[$m]??0, $pending_labels);
+
+// KPIs de resumen
+$kpi = $pdo->query("
+    SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN CURRENT_DATE() > DueDate THEN 1 ELSE 0 END) AS vencidos,
+        SUM(CASE WHEN DueDate BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS proximos,
+        SUM(CASE WHEN CURRENT_DATE() <= DueDate AND NOT (DueDate BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY)) THEN 1 ELSE 0 END) AS calibrados
+    FROM instruments
+")->fetch();
 ?>
 <?php include __DIR__.'/partials/header.php'; ?>
 
@@ -121,6 +131,31 @@ $pending_data = array_map(fn($m)=>$counts[$m]??0, $pending_labels);
 @media (min-width: 992px){
   .chart-box{ height: 280px; } /* en pantallas grandes, un pelín más alto */
 }
+.kpi-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 1.25rem;
+  text-align: center;
+  transition: all 0.25s ease;
+}
+.kpi-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(255,255,255,0.15);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+.kpi-number {
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 0.35rem;
+}
+.kpi-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #8b92a7;
+}
 </style>
 
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
@@ -132,6 +167,34 @@ $pending_data = array_map(fn($m)=>$counts[$m]??0, $pending_labels);
     <a href="instruments_inventory_print.php" target="_blank" class="btn btn-danger btn-sm">
       <i class="fa fa-file-pdf me-1"></i> PDF / Imprimir
     </a>
+  </div>
+</div>
+
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-number text-white"><?= (int)($kpi['total'] ?? 0) ?></div>
+      <div class="kpi-label">Total instrumentos</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-number text-success"><?= (int)($kpi['calibrados'] ?? 0) ?></div>
+      <div class="kpi-label">Calibrados</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-number text-warning"><?= (int)($kpi['proximos'] ?? 0) ?></div>
+      <div class="kpi-label">Próximos (&lt;30 días)</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-number text-danger"><?= (int)($kpi['vencidos'] ?? 0) ?></div>
+      <div class="kpi-label">Vencidos</div>
+    </div>
   </div>
 </div>
 
