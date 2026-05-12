@@ -164,8 +164,11 @@ $kpi = $pdo->query("
     <a href="report.php?download=csv" class="btn btn-success btn-sm">
       <i class="fa fa-file-csv me-1"></i> Descargar CSV
     </a>
+    <a href="instruments_inventory_print.php?no_img=1" target="_blank" class="btn btn-outline-danger btn-sm">
+      <i class="fa fa-file-pdf me-1"></i> PDF (Ligero)
+    </a>
     <a href="instruments_inventory_print.php" target="_blank" class="btn btn-danger btn-sm">
-      <i class="fa fa-file-pdf me-1"></i> PDF / Imprimir
+      <i class="fa fa-file-pdf me-1"></i> PDF (Completo)
     </a>
   </div>
 </div>

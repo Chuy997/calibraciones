@@ -42,6 +42,13 @@ $rows = pdo()->query($sql)->fetchAll();
   </div>
 </div>
 
+<?php if (($_GET['msg'] ?? '') === 'NoID'): ?>
+  <div class="alert alert-warning alert-dismissible fade show" role="alert">
+    <strong>Atención:</strong> Por favor seleccione un material de la lista para enviarlo a Scrap.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+<?php endif; ?>
+
 <div class="card p-3 table-density-comfort dt-container">
   <div class="dt-toolbar">
     <div class="input-group" style="max-width:320px;">

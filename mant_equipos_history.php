@@ -123,6 +123,14 @@ $periodLabels = ['3M' => 'Cada 3 meses', '6M' => 'Cada 6 meses', '1Y' => 'Anual'
           $colorAction = $action === 'create' ? 'success' : 'primary';
           $labelAction = $action === 'create' ? 'Alta del equipo' : 'Mantenimiento registrado';
           $pLabel = $periodLabels[$h_row['MaintPeriod'] ?? ''] ?? ($h_row['MaintPeriod'] ?? '');
+          // Badge de ciclo registrado
+          $cycleType = $h_row['CycleType'] ?? null;
+          $cycleBadgeMap = [
+              '1M' => ['label'=>'Mensual',     'color'=>'#6366f1', 'icon'=>'fa-calendar-day'],
+              '3M' => ['label'=>'Trimestral',  'color'=>'#fb923c', 'icon'=>'fa-rotate'],
+              '1Y' => ['label'=>'Anual',        'color'=>'#20c997', 'icon'=>'fa-calendar-check'],
+          ];
+          $cycleBadge = $cycleType ? ($cycleBadgeMap[$cycleType] ?? null) : null;
         ?>
         <div class="timeline-item">
           <div class="timeline-icon bg-<?= $colorAction ?>">
@@ -132,6 +140,11 @@ $periodLabels = ['3M' => 'Cada 3 meses', '6M' => 'Cada 6 meses', '1Y' => 'Anual'
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
               <div>
                 <span class="badge bg-<?= $colorAction ?> me-2"><?= h($labelAction) ?></span>
+                <?php if ($cycleBadge): ?>
+                <span class="badge me-2" style="background:<?= h($cycleBadge['color']) ?>;">
+                  <i class="fa <?= h($cycleBadge['icon']) ?> me-1"></i><?= h($cycleBadge['label']) ?>
+                </span>
+                <?php endif; ?>
                 <small class="text-muted"><?= h((string)($h_row['UpdatedAt'] ?? '')) ?></small>
               </div>
               <?php if (!empty($h_row['PdfPath'])): ?>

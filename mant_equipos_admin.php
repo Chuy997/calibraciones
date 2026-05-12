@@ -18,6 +18,13 @@ SELECT
     e.NextMaintDate,
     e.MaintPeriod,
     e.Comments,
+    e.CycleMonthly,
+    e.CycleQuarterly,
+    e.CycleYearly,
+    e.LastMaintDate_3M,
+    e.NextMaintDate_3M,
+    e.LastMaintDate_1M,
+    e.NextMaintDate_1M,
     e.PdfPath AS CurrentPdf,
     CASE
         WHEN CURRENT_DATE() > e.NextMaintDate THEN 'Vencido'
@@ -25,6 +32,7 @@ SELECT
         ELSE 'Al corriente'
     END AS status_calculado
 FROM mant_equipos e
+WHERE e.Status != 'Scrap'
 ORDER BY e.NextMaintDate ASC
 SQL;
 
@@ -63,7 +71,14 @@ $periodLabels = ['3M' => 'Cada 3 meses', '6M' => 'Cada 6 meses', '1Y' => 'Anual'
 
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
   <h1 class="h4 m-0"><i class="fa fa-gears me-2"></i>Mantenimientos de Maquinaria</h1>
-  <a class="btn btn-success btn-lg" href="mant_equipos_add.php"><i class="fa fa-plus me-2"></i>Nuevo Equipo</a>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-info" href="mant_equipos_periodicidad.php">
+      <i class="fa fa-sliders me-2"></i>Configurar Periodicidad
+    </a>
+    <a class="btn btn-success btn-lg" href="mant_equipos_add.php">
+      <i class="fa fa-plus me-2"></i>Nuevo Equipo
+    </a>
+  </div>
 </div>
 
 <div class="card p-3 table-density-comfort dt-container">
@@ -97,8 +112,13 @@ $periodLabels = ['3M' => 'Cada 3 meses', '6M' => 'Cada 6 meses', '1Y' => 'Anual'
       $estado = $r['status_calculado'] ?? '';
       $badge  = $estado === 'Vencido' ? 'badge-ven' : ($estado === 'Próximo mantenimiento' ? 'badge-prox' : 'badge-cal');
       $stateIcon = $estado === 'Vencido' ? 'fa-circle-xmark' : ($estado === 'Próximo mantenimiento' ? 'fa-clock' : 'fa-circle-check');
-      $period = $r['MaintPeriod'] ?? '1Y';
+      $period      = $r['MaintPeriod'] ?? '1Y';
       $periodLabel = $periodLabels[$period] ?? $period;
+      // Fechas de ciclos adicionales (de columnas propias, no calculadas)
+      $nextMonthly      = $r['CycleMonthly']   ? ($r['NextMaintDate_1M'] ?? null) : null;
+      $nextQuarterly    = $r['CycleQuarterly'] ? ($r['NextMaintDate_3M'] ?? null) : null;
+      $lastMonthly      = $r['CycleMonthly']   ? ($r['LastMaintDate_1M'] ?? null) : null;
+      $lastQuarterly    = $r['CycleQuarterly'] ? ($r['LastMaintDate_3M'] ?? null) : null;
     ?>
     <div class="mant-card" data-id="<?= h($r['ID']) ?>" data-status="<?= h($estado) ?>" data-period="<?= h($period) ?>">
       <!-- Card Header con Imagen y Estado -->
@@ -166,14 +186,38 @@ $periodLabels = ['3M' => 'Cada 3 meses', '6M' => 'Cada 6 meses', '1Y' => 'Anual'
         <div class="card-dates">
           <div class="date-item">
             <i class="fa fa-calendar-check text-success me-1"></i>
-            <span class="date-label">Último mant.:</span>
+            <span class="date-label"><?= $r['CycleQuarterly'] || $r['CycleMonthly'] ? 'Último Anual:' : 'Último mant.:' ?></span>
             <span class="date-value"><?= h($r['LastMaintDate'] ?? '—') ?></span>
           </div>
           <div class="date-item">
             <i class="fa fa-calendar-days text-warning me-1"></i>
-            <span class="date-label">Próximo:</span>
+            <span class="date-label"><?= $r['CycleYearly'] ? 'Próx. Anual:' : 'Próximo:' ?></span>
             <span class="date-value"><?= h($r['NextMaintDate'] ?? '—') ?></span>
           </div>
+          <?php if ($r['CycleQuarterly']): ?>
+          <div class="date-item">
+            <i class="fa fa-rotate me-1" style="color:#fb923c;"></i>
+            <span class="date-label">Últ. Trimest.:</span>
+            <span class="date-value" style="color:#e5c07b;"><?= h($lastQuarterly ?: '—') ?></span>
+          </div>
+          <div class="date-item">
+            <i class="fa fa-rotate me-1" style="color:#fb923c;"></i>
+            <span class="date-label">Próx. Trimest.:</span>
+            <span class="date-value" style="color:#fdba74;"><?= h($nextQuarterly ?: '—') ?></span>
+          </div>
+          <?php endif; ?>
+          <?php if ($r['CycleMonthly']): ?>
+          <div class="date-item">
+            <i class="fa fa-calendar-day me-1" style="color:#a5b4fc;"></i>
+            <span class="date-label">Últ. Mensual:</span>
+            <span class="date-value" style="color:#c4b5fd;"><?= h($lastMonthly ?: '—') ?></span>
+          </div>
+          <div class="date-item">
+            <i class="fa fa-calendar-day me-1" style="color:#a5b4fc;"></i>
+            <span class="date-label">Próx. Mensual:</span>
+            <span class="date-value" style="color:#c4b5fd;"><?= h($nextMonthly ?: '—') ?></span>
+          </div>
+          <?php endif; ?>
         </div>
       </div>
 

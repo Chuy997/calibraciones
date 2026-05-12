@@ -53,13 +53,27 @@ $norm        = fn(string $p) => $p ? ('/'.ltrim($p,'/')) : '';
 $pdfPathView     = $norm($pdfPath);
 $picturePathView = $norm($picturePath);
 
+// Ciclos habilitados para este equipo
+$enabledCycles = [];
+if (!empty($equipo['CycleMonthly']))   $enabledCycles['1M'] = 'Mensual';
+if (!empty($equipo['CycleQuarterly'])) $enabledCycles['3M'] = 'Trimestral';
+if (!empty($equipo['CycleYearly']))    $enabledCycles['1Y'] = 'Anual';
+if (empty($enabledCycles))             $enabledCycles['1Y'] = 'Anual'; // fallback
+
+// Fechas actuales por ciclo
+$cycleDates = [
+    '1M' => ['last' => (string)($equipo['LastMaintDate_1M'] ?? ''), 'next' => (string)($equipo['NextMaintDate_1M'] ?? '')],
+    '3M' => ['last' => (string)($equipo['LastMaintDate_3M'] ?? ''), 'next' => (string)($equipo['NextMaintDate_3M'] ?? '')],
+    '1Y' => ['last' => (string)($equipo['LastMaintDate']    ?? ''), 'next' => (string)($equipo['NextMaintDate']    ?? '')],
+];
+
 // Campos editables
+$defaultCycle = array_key_first($enabledCycles);
 $values = [
-    'lastMaintDate' => (string)($equipo['LastMaintDate'] ?? ''),
-    'nextMaintDate' => (string)($equipo['NextMaintDate'] ?? ''),
-    'maintPeriod'   => (string)($equipo['MaintPeriod']   ?? '1Y'),
-    'location'      => (string)($equipo['Location']      ?? ''),
-    'comments'      => (string)($equipo['Comments']      ?? ''),
+    'lastMaintDate'  => $cycleDates[$defaultCycle]['last'],
+    'selectedCycle'  => $defaultCycle,
+    'location'       => (string)($equipo['Location'] ?? ''),
+    'comments'       => (string)($equipo['Comments'] ?? ''),
 ];
 
 $errors = [];
@@ -171,31 +185,134 @@ function handleUploadMantU(string $field, string $destDir, string $kind): ?strin
     return '/' . ltrim($rel, '/');
 }
 
-// 3) Procesar POST
+// 3a) Acciones de Scrap y Eliminación (se evalúan antes del update normal)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array(($_POST['action'] ?? ''), ['scrap_equipo','delete_equipo'], true)) {
+    if (!isset($_POST['csrf']) || !csrf_validate($_POST['csrf'])) {
+        $errors[] = 'Sesión expirada.';
+    } else {
+        $action = $_POST['action'];
+
+        if ($action === 'scrap_equipo') {
+            $reason = trim((string)($_POST['scrap_reason'] ?? ''));
+            if ($reason === '') {
+                $errors[] = 'Debes indicar el motivo para enviar a Scrap.';
+            } else {
+                try {
+                    $pdo->beginTransaction();
+                    $pdo->prepare("
+                        UPDATE mant_equipos
+                           SET Status = 'Scrap',
+                               Comments = CONCAT(COALESCE(Comments,''),
+                                          CASE WHEN COALESCE(Comments,'')='' THEN '' ELSE '\n' END,
+                                          '[Scrap] ', :reason)
+                         WHERE ID = :id
+                    ")->execute([':reason' => $reason, ':id' => $id]);
+
+                    $pdo->prepare("
+                        INSERT INTO mant_equipos_history
+                          (EquipoID, Action, Description, Brand, Model, SerialNumber,
+                           Location, LastMaintDate, NextMaintDate, Status, Comments, PdfPath, Picture)
+                        VALUES
+                          (:eid,'scrap',:desc,:brand,:model,:serial,
+                           :loc,:last,:next,'Scrap',:cmt,:pdf,:pic)
+                    ")->execute([
+                        ':eid'    => $id, ':desc'   => $description,
+                        ':brand'  => $brand, ':model'  => $model,
+                        ':serial' => $serialNumber,
+                        ':loc'    => (string)($equipo['Location'] ?? ''),
+                        ':last'   => (string)($equipo['LastMaintDate'] ?? ''),
+                        ':next'   => (string)($equipo['NextMaintDate'] ?? ''),
+                        ':cmt'    => '[Scrap] ' . $reason,
+                        ':pdf'    => $pdfPath ?: null,
+                        ':pic'    => $picturePath ?: null,
+                    ]);
+                    $pdo->commit();
+                    header('Location: mant_equipos_admin.php');
+                    exit;
+                } catch (Throwable $e) {
+                    if ($pdo->inTransaction()) $pdo->rollBack();
+                    $errors[] = 'Error al enviar a Scrap: ' . $e->getMessage();
+                }
+            }
+        } elseif ($action === 'delete_equipo') {
+            // Solo admin puede eliminar definitivamente
+            if (($_SESSION['role'] ?? '') !== 'admin') {
+                $errors[] = 'Solo el rol Administrador puede eliminar equipos.';
+            } else {
+                $confirm = trim((string)($_POST['delete_confirm'] ?? ''));
+                if ($confirm !== $id) {
+                    $errors[] = 'Confirmación incorrecta. Escribe el ID exacto del equipo.';
+                } else {
+                    try {
+                        $pdo->beginTransaction();
+                        // Primero registrar en historial (antes de borrar)
+                        $pdo->prepare("
+                            INSERT INTO mant_equipos_history
+                              (EquipoID, Action, Description, Brand, Model, SerialNumber,
+                               Location, LastMaintDate, NextMaintDate, Status, Comments, PdfPath, Picture)
+                            VALUES
+                              (:eid,'delete',:desc,:brand,:model,:serial,
+                               :loc,:last,:next,:status,'[Eliminado definitivamente]',:pdf,:pic)
+                        ")->execute([
+                            ':eid'    => $id, ':desc'   => $description,
+                            ':brand'  => $brand, ':model'  => $model,
+                            ':serial' => $serialNumber,
+                            ':loc'    => (string)($equipo['Location'] ?? ''),
+                            ':last'   => (string)($equipo['LastMaintDate'] ?? ''),
+                            ':next'   => (string)($equipo['NextMaintDate'] ?? ''),
+                            ':status' => (string)($equipo['Status'] ?? ''),
+                            ':pdf'    => $pdfPath ?: null,
+                            ':pic'    => $picturePath ?: null,
+                        ]);
+                        // Eliminar historial asociado y luego el equipo
+                        $pdo->prepare('DELETE FROM mant_equipos_history WHERE EquipoID = ?')->execute([$id]);
+                        $pdo->prepare('DELETE FROM mant_equipos WHERE ID = ?')->execute([$id]);
+                        $pdo->commit();
+                        header('Location: mant_equipos_admin.php');
+                        exit;
+                    } catch (Throwable $e) {
+                        if ($pdo->inTransaction()) $pdo->rollBack();
+                        $errors[] = 'Error al eliminar el equipo: ' . $e->getMessage();
+                    }
+                }
+            }
+        }
+    }
+}
+
+// 3b) Procesar POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_POST['csrf']) || !csrf_validate($_POST['csrf'])) {
         $errors[] = 'Sesión expirada. Por favor, vuelve a intentar.';
     }
 
     $values['lastMaintDate'] = trim($_POST['lastMaintDate'] ?? '');
-    $values['maintPeriod']   = trim($_POST['maintPeriod']   ?? '1Y');
+    $values['selectedCycle'] = trim($_POST['cycle'] ?? $defaultCycle);
     $values['location']      = trim($_POST['location']      ?? '');
     $values['comments']      = trim($_POST['comments']      ?? '');
 
-    if ($values['lastMaintDate'] === '') {
-        $errors[] = 'Debes ingresar la fecha del último mantenimiento.';
-    }
-    if (!array_key_exists($values['maintPeriod'], $PERIOD_ALLOWED_U)) {
-        $errors[] = 'Período de mantenimiento inválido.';
+    // Validar que el ciclo seleccionado está habilitado para este equipo
+    if (!array_key_exists($values['selectedCycle'], $enabledCycles)) {
+        $values['selectedCycle'] = $defaultCycle;
     }
 
-    // Calcular nextMaintDate
+    if ($values['lastMaintDate'] === '') {
+        $errors[] = 'Debes ingresar la fecha del mantenimiento.';
+    }
+
+    // Calcular próxima fecha según ciclo
     $nextMaintDate = '';
     if (!$errors) {
-        try {
-            $nextMaintDate = calcNextMaintDateU($values['lastMaintDate'], $values['maintPeriod']);
-        } catch (Throwable $e) {
-            $errors[] = $e->getMessage();
+        $dtBase = DateTime::createFromFormat('Y-m-d', $values['lastMaintDate']);
+        if (!$dtBase) {
+            $errors[] = 'Fecha de mantenimiento inválida.';
+        } else {
+            $interval = match($values['selectedCycle']) {
+                '1M'    => '+1 month',
+                '3M'    => '+3 months',
+                default => '+1 year',
+            };
+            $nextMaintDate = (clone $dtBase)->modify($interval)->format('Y-m-d');
         }
     }
 
@@ -203,53 +320,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $pdo->beginTransaction();
 
-            $destDirAbs = __DIR__ . '/uploads/mant_equipos/' . $id . '/';
-
+            $destDirAbs    = __DIR__ . '/uploads/mant_equipos/' . $id . '/';
             $newPdfUrl     = handleUploadMantU('pdf',     $destDirAbs, 'pdf_or_img');
             $newPictureUrl = handleUploadMantU('picture', $destDirAbs, 'img');
-
             if ($newPdfUrl !== null)     { $pdfPath     = $newPdfUrl; }
             if ($newPictureUrl !== null) { $picturePath = $newPictureUrl; }
 
-            $statusAuto = calcStatusU($nextMaintDate);
+            // UPDATE solo las columnas del ciclo seleccionado
+            if ($values['selectedCycle'] === '1Y') {
+                $statusAuto = calcStatusU($nextMaintDate);
+                $pdo->prepare("
+                    UPDATE mant_equipos
+                       SET LastMaintDate = :last, NextMaintDate = :next,
+                           MaintPeriod = '1Y', Status = :status,
+                           Location = :loc, Comments = :cmt,
+                           PdfPath = :pdf, Picture = :pic
+                     WHERE ID = :id
+                ")->execute([':last'=>$values['lastMaintDate'],':next'=>$nextMaintDate,
+                    ':status'=>$statusAuto,':loc'=>$values['location'],
+                    ':cmt'=>$values['comments'],':pdf'=>$pdfPath?:null,
+                    ':pic'=>$picturePath?:null,':id'=>$id]);
+            } elseif ($values['selectedCycle'] === '3M') {
+                $pdo->prepare("
+                    UPDATE mant_equipos
+                       SET LastMaintDate_3M = :last, NextMaintDate_3M = :next,
+                           Location = :loc, Comments = :cmt,
+                           PdfPath = :pdf, Picture = :pic
+                     WHERE ID = :id
+                ")->execute([':last'=>$values['lastMaintDate'],':next'=>$nextMaintDate,
+                    ':loc'=>$values['location'],':cmt'=>$values['comments'],
+                    ':pdf'=>$pdfPath?:null,':pic'=>$picturePath?:null,':id'=>$id]);
+                $statusAuto = calcStatusU((string)($equipo['NextMaintDate'] ?? $nextMaintDate));
+            } else { // 1M
+                $pdo->prepare("
+                    UPDATE mant_equipos
+                       SET LastMaintDate_1M = :last, NextMaintDate_1M = :next,
+                           Location = :loc, Comments = :cmt,
+                           PdfPath = :pdf, Picture = :pic
+                     WHERE ID = :id
+                ")->execute([':last'=>$values['lastMaintDate'],':next'=>$nextMaintDate,
+                    ':loc'=>$values['location'],':cmt'=>$values['comments'],
+                    ':pdf'=>$pdfPath?:null,':pic'=>$picturePath?:null,':id'=>$id]);
+                $statusAuto = calcStatusU((string)($equipo['NextMaintDate'] ?? $nextMaintDate));
+            }
 
-            // UPDATE mant_equipos
-            $upd = $pdo->prepare("
-                UPDATE mant_equipos
-                   SET LastMaintDate = :LastMaintDate,
-                       NextMaintDate = :NextMaintDate,
-                       MaintPeriod   = :MaintPeriod,
-                       Status        = :Status,
-                       Location      = :Location,
-                       Comments      = :Comments,
-                       PdfPath       = :PdfPath,
-                       Picture       = :Picture
-                 WHERE ID = :ID
-            ");
-            $upd->execute([
-                ':LastMaintDate' => $values['lastMaintDate'],
-                ':NextMaintDate' => $nextMaintDate,
-                ':MaintPeriod'   => $values['maintPeriod'],
-                ':Status'        => $statusAuto,
-                ':Location'      => $values['location'],
-                ':Comments'      => $values['comments'],
-                ':PdfPath'       => $pdfPath    ?: null,
-                ':Picture'       => $picturePath ?: null,
-                ':ID'            => $id,
-            ]);
-
-            // INSERT mant_equipos_history
-            $hst = $pdo->prepare("
+            // INSERT historial con CycleType
+            $histPeriod = in_array($values['selectedCycle'], ['3M','1Y'], true) ? $values['selectedCycle'] : null;
+            $pdo->prepare("
                 INSERT INTO mant_equipos_history
                   (EquipoID, Action, Description, Brand, Model, SerialNumber,
-                   Location, LastMaintDate, NextMaintDate, MaintPeriod, Status,
+                   Location, LastMaintDate, NextMaintDate, MaintPeriod, CycleType, Status,
                    Comments, PdfPath, Picture)
                 VALUES
-                  (:EquipoID, 'update', :Description, :Brand, :Model, :SerialNumber,
-                   :Location, :LastMaintDate, :NextMaintDate, :MaintPeriod, :Status,
-                   :Comments, :PdfPath, :Picture)
-            ");
-            $hst->execute([
+                  (:EquipoID,'update',:Description,:Brand,:Model,:SerialNumber,
+                   :Location,:LastMaintDate,:NextMaintDate,:MaintPeriod,:CycleType,:Status,
+                   :Comments,:PdfPath,:Picture)
+            ")->execute([
                 ':EquipoID'      => $id,
                 ':Description'   => $description,
                 ':Brand'         => $brand,
@@ -258,7 +384,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':Location'      => $values['location'],
                 ':LastMaintDate' => $values['lastMaintDate'],
                 ':NextMaintDate' => $nextMaintDate,
-                ':MaintPeriod'   => $values['maintPeriod'],
+                ':MaintPeriod'   => $histPeriod,
+                ':CycleType'     => $values['selectedCycle'],
                 ':Status'        => $statusAuto,
                 ':Comments'      => $values['comments'],
                 ':PdfPath'       => $pdfPath    ?: null,
@@ -317,52 +444,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <input type="text" class="form-control" value="<?= h($serialNumber) ?>" disabled>
         </div>
 
-        <!-- Período de mantenimiento (editable) -->
-        <div class="col-sm-6">
-          <label for="maintPeriod" class="form-label">
-            <i class="fa fa-rotate me-1"></i>Período de Mantenimiento <span class="text-danger">*</span>
+        <!-- Selector de ciclo -->
+        <div class="col-12">
+          <label class="form-label fw-semibold">
+            <i class="fa fa-rotate me-1"></i>¿Qué ciclo estás registrando? <span class="text-danger">*</span>
           </label>
-          <select id="maintPeriod" name="maintPeriod" class="form-select" required>
-            <?php foreach ($PERIOD_ALLOWED_U as $val => $label): ?>
-              <option value="<?= h($val) ?>" <?= $values['maintPeriod'] === $val ? 'selected' : '' ?>>
-                <?= h($label) ?>
-              </option>
+          <?php if (count($enabledCycles) === 1): ?>
+            <input type="hidden" name="cycle" value="<?= h(array_key_first($enabledCycles)) ?>">
+            <input type="text" class="form-control" value="<?= h(array_values($enabledCycles)[0]) ?>" disabled>
+          <?php else: ?>
+          <div class="cycle-btn-group" role="group">
+            <?php
+              $cycleColors = ['1M'=>'indigo','3M'=>'orange','1Y'=>'green'];
+              $cycleIcons  = ['1M'=>'fa-calendar-day','3M'=>'fa-rotate','1Y'=>'fa-calendar-check'];
+            ?>
+            <?php foreach ($enabledCycles as $cKey => $cLabel): ?>
+            <input type="radio" class="btn-check" name="cycle" id="cycle_<?= h($cKey) ?>"
+                   value="<?= h($cKey) ?>" <?= $values['selectedCycle'] === $cKey ? 'checked' : '' ?>>
+            <label class="btn cycle-opt cycle-opt-<?= h($cycleColors[$cKey] ?? 'secondary') ?>"
+                   for="cycle_<?= h($cKey) ?>">
+              <i class="fa <?= h($cycleIcons[$cKey] ?? 'fa-calendar') ?> me-1"></i><?= h($cLabel) ?>
+              <small class="d-block mt-1" style="font-size:0.72rem;opacity:0.8;">
+                Último: <?= h($cycleDates[$cKey]['last'] ?: '—') ?><br>
+                Próx: <?= h($cycleDates[$cKey]['next'] ?: '—') ?>
+              </small>
+            </label>
             <?php endforeach; ?>
-          </select>
+          </div>
+          <?php endif; ?>
         </div>
 
-        <!-- Fecha último mantenimiento (editable) -->
+        <!-- Fecha del mantenimiento realizado -->
         <div class="col-sm-6">
           <label for="lastMaintDate" class="form-label">
             <i class="fa fa-calendar-check me-1 text-success"></i>Fecha del Mantenimiento <span class="text-danger">*</span>
           </label>
           <input type="date" class="form-control" id="lastMaintDate" name="lastMaintDate"
                  value="<?= h($values['lastMaintDate']) ?>" required>
-          <div class="form-text">Ingresa la fecha en que se realizó este mantenimiento.</div>
+          <div class="form-text">Fecha en que se realizó este mantenimiento.</div>
         </div>
 
         <!-- Próximo (preview) -->
         <div class="col-sm-6">
           <label class="form-label">
-            <i class="fa fa-calendar-days me-1 text-warning"></i>Próximo Mantenimiento (calculado)
+            <i class="fa fa-calendar-days me-1 text-warning"></i>Próximo (calculado)
           </label>
-          <?php
-            $nextPreview = '';
-            if ($values['lastMaintDate'] && $values['maintPeriod']) {
-                try { $nextPreview = calcNextMaintDateU($values['lastMaintDate'], $values['maintPeriod']); } catch (\Throwable $e) {}
-            }
-          ?>
-          <input type="date" class="form-control" id="nextMaintPreview" value="<?= h($nextPreview) ?>" disabled>
-          <div class="form-text">Se calcula automáticamente según el período.</div>
-        </div>
-
-        <!-- Estado preview -->
-        <div class="col-sm-6">
-          <label class="form-label">
-            <i class="fa fa-circle-info me-1"></i>Estado (automático)
-          </label>
-          <input type="text" class="form-control" id="statusPreview"
-                 value="<?= $nextPreview ? h(calcStatusU($nextPreview)) : '' ?>" disabled>
+          <input type="date" class="form-control" id="nextMaintPreview" disabled>
+          <div class="form-text">Se calcula automáticamente según el ciclo seleccionado.</div>
         </div>
 
         <!-- Ubicación (editable) -->
@@ -444,46 +572,145 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </div>
 </div>
 
+<!-- ===== ZONA DE PELIGRO ===== -->
+<?php if (($equipo['Status'] ?? '') !== 'Scrap'): ?>
+<div class="row justify-content-center mt-4 mb-5">
+  <div class="col-12 col-lg-8 col-xl-7">
+    <div class="card p-3" style="border:1px solid rgba(220,53,69,0.35);background:rgba(220,53,69,0.05);">
+      <h6 class="text-danger mb-3"><i class="fa fa-triangle-exclamation me-2"></i>Zona de Peligro</h6>
+      <div class="d-flex gap-2 flex-wrap">
+
+        <!-- Scrap -->
+        <button type="button" class="btn btn-warning"
+                data-bs-toggle="modal" data-bs-target="#scrapModal">
+          <i class="fa fa-dumpster me-2"></i>Enviar a Scrap
+        </button>
+
+        <!-- Eliminar (solo admin) -->
+        <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
+        <button type="button" class="btn btn-danger"
+                data-bs-toggle="modal" data-bs-target="#deleteModal">
+          <i class="fa fa-trash me-2"></i>Eliminar Equipo
+        </button>
+        <?php endif; ?>
+      </div>
+      <small class="text-secondary mt-2 d-block">
+        <strong>Scrap:</strong> desactiva el equipo y lo retira del panel sin borrar el historial.
+        <?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
+        &nbsp;&bull;&nbsp;<strong>Eliminar:</strong> borra permanentemente el equipo y todo su historial.
+        <?php endif; ?>
+      </small>
+    </div>
+  </div>
+</div>
+<?php else: ?>
+<div class="row justify-content-center mt-4 mb-5">
+  <div class="col-12 col-lg-8 col-xl-7">
+    <div class="alert alert-warning">
+      <i class="fa fa-dumpster me-2"></i>Este equipo ya se encuentra en estado <strong>Scrap</strong>.
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
+<!-- Modal Scrap -->
+<div class="modal fade" id="scrapModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title"><i class="fa fa-dumpster text-warning me-2"></i>Confirmar Scrap</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="mant_equipos_update.php?id=<?= h($id) ?>">
+        <input type="hidden" name="csrf"   value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="id"     value="<?= h($id) ?>">
+        <input type="hidden" name="action" value="scrap_equipo">
+        <div class="modal-body">
+          <p>El equipo <strong><?= h($id) ?> &ndash; <?= h($description) ?></strong> quedará marcado como <span class="text-warning fw-bold">Scrap</span> y desaparecerá del panel de mantenimientos.</p>
+          <div class="mb-3">
+            <label for="scrap_reason" class="form-label">Motivo de Scrap <span class="text-danger">*</span></label>
+            <textarea id="scrap_reason" name="scrap_reason" class="form-control" rows="3"
+                      placeholder="Describe la razón del retiro…" required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-warning">
+            <i class="fa fa-dumpster me-2"></i>Confirmar Scrap
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Eliminar (solo admin) -->
+<?php if (($_SESSION['role'] ?? '') === 'admin'): ?>
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark">
+      <div class="modal-header border-danger">
+        <h5 class="modal-title text-danger"><i class="fa fa-trash me-2"></i>Eliminar Equipo Permanentemente</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="mant_equipos_update.php?id=<?= h($id) ?>">
+        <input type="hidden" name="csrf"   value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="id"     value="<?= h($id) ?>">
+        <input type="hidden" name="action" value="delete_equipo">
+        <div class="modal-body">
+          <div class="alert alert-danger">
+            <i class="fa fa-triangle-exclamation me-2"></i>
+            <strong>Esta acción es irreversible.</strong> Se borrará el equipo y todo su historial de mantenimientos.
+          </div>
+          <p>Para confirmar, escribe el ID del equipo:</p>
+          <p class="font-monospace fw-bold text-danger"><?= h($id) ?></p>
+          <input type="text" name="delete_confirm" class="form-control"
+                 placeholder="Escribe: <?= h($id) ?>" autocomplete="off" required>
+        </div>
+        <div class="modal-footer border-danger">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-danger">
+            <i class="fa fa-trash me-2"></i>Eliminar definitivamente
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
 <script>
-// Auto-cálculo de Próximo Mantenimiento y Estado
+// Auto-cálculo de Próximo según ciclo
 function toYMD(d) {
   const p = n => String(n).padStart(2,'0');
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
 }
-function addPeriod(ymd, period) {
+function addCycle(ymd, cycle) {
   if (!ymd) return '';
   const [y, m, d] = ymd.split('-').map(Number);
   const dt = new Date(y, m - 1, d);
-  if (period === '3M')      dt.setMonth(dt.getMonth() + 3);
-  else if (period === '6M') dt.setMonth(dt.getMonth() + 6);
-  else                      dt.setFullYear(dt.getFullYear() + 1);
+  if      (cycle === '1M') dt.setMonth(dt.getMonth() + 1);
+  else if (cycle === '3M') dt.setMonth(dt.getMonth() + 3);
+  else                     dt.setFullYear(dt.getFullYear() + 1);
   return toYMD(dt);
 }
-function calcStatusJS(nextDate) {
-  if (!nextDate) return '';
-  const today = toYMD(new Date());
-  const limit = new Date(); limit.setDate(limit.getDate() + 30);
-  const limitStr = toYMD(limit);
-  if (nextDate < today)    return 'Vencido';
-  if (nextDate <= limitStr) return 'Próximo mantenimiento';
-  return 'Al corriente';
+function getSelectedCycle() {
+  const r = document.querySelector('input[name="cycle"]:checked');
+  return r ? r.value : '1Y';
 }
 function updatePreview() {
   const lastDate = document.getElementById('lastMaintDate').value;
-  const period   = document.getElementById('maintPeriod').value;
+  const cycle    = getSelectedCycle();
   const nextPrev = document.getElementById('nextMaintPreview');
-  const statPrev = document.getElementById('statusPreview');
-  if (lastDate && period) {
-    const next = addPeriod(lastDate, period);
-    nextPrev.value = next;
-    statPrev.value = calcStatusJS(next);
+  if (lastDate) {
+    nextPrev.value = addCycle(lastDate, cycle);
   } else {
     nextPrev.value = '';
-    statPrev.value = '';
   }
 }
 document.getElementById('lastMaintDate').addEventListener('change', updatePreview);
-document.getElementById('maintPeriod').addEventListener('change', updatePreview);
+document.querySelectorAll('input[name="cycle"]').forEach(r => r.addEventListener('change', updatePreview));
+updatePreview();
 
 // Vista previa imagen
 const pictureInput = document.getElementById('picture');
@@ -529,6 +756,23 @@ if (pdfInput) {
 </script>
 
 <style>
+/* Cycle selector */
+.cycle-btn-group { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.cycle-opt {
+  flex: 1; min-width: 130px; padding: 0.75rem 1rem;
+  border-radius: 12px; font-weight: 600; font-size: 0.9rem;
+  border: 2px solid transparent; text-align: center;
+  transition: all 0.2s ease; cursor: pointer;
+}
+.cycle-opt-green  { background: rgba(32,201,151,0.1); border-color: rgba(32,201,151,0.3); color: #6ee7b7; }
+.cycle-opt-orange { background: rgba(251,146,60,0.1);  border-color: rgba(251,146,60,0.3);  color: #fdba74; }
+.cycle-opt-indigo { background: rgba(99,102,241,0.1);  border-color: rgba(99,102,241,0.3);  color: #a5b4fc; }
+.btn-check:checked + .cycle-opt-green  { background: rgba(32,201,151,0.25); border-color: #20c997; box-shadow: 0 0 0 3px rgba(32,201,151,0.2); }
+.btn-check:checked + .cycle-opt-orange { background: rgba(251,146,60,0.25);  border-color: #fb923c; box-shadow: 0 0 0 3px rgba(251,146,60,0.2); }
+.btn-check:checked + .cycle-opt-indigo { background: rgba(99,102,241,0.25);  border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.2); }
+@media (max-width: 576px) { .cycle-opt { min-width: 100%; } }
+
+/* Existing styles */
 @media (max-width: 767px) {
   .form-control, .form-control-lg { min-height: 48px; font-size: 16px; }
   .btn-lg { min-height: 52px; font-size: 1.1rem; }

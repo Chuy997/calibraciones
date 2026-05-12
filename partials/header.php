@@ -15,6 +15,8 @@ function active(string $file): string {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Calibraciones</title>
+  <link rel="icon" type="image/png" href="/calibraciones/favicon.png?v=3">
+  <link rel="shortcut icon" type="image/png" href="/calibraciones/favicon.png?v=3">
 
   <!-- Bootstrap 5 + Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">

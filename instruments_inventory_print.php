@@ -7,7 +7,56 @@ require_auth('admin');
 
 function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
+function get_lightweight_image(string $url): string {
+    if (!$url) return '';
+    $docRoot = $_SERVER['DOCUMENT_ROOT'] ?: '/var/www/html';
+    $path = rtrim($docRoot, '/') . $url;
+    if (!file_exists($path)) return h($url);
+    $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+    if ($ext === 'jpg' || $ext === 'jpeg') {
+        $img = @imagecreatefromjpeg($path);
+    } elseif ($ext === 'png') {
+        $img = @imagecreatefrompng($path);
+    } else {
+        return h($url);
+    }
+    if (!$img) return h($url);
+    $w = imagesx($img);
+    $h = imagesy($img);
+    if ($w == 0 || $h == 0) return h($url);
+    $max_dim = 40;
+    if ($w > $h) {
+        $new_w = $max_dim;
+        $new_h = (int)max(1, $h * ($max_dim / $w));
+    } else {
+        $new_h = $max_dim;
+        $new_w = (int)max(1, $w * ($max_dim / $h));
+    }
+    $thumb = imagecreatetruecolor($new_w, $new_h);
+    if ($ext === 'png') {
+        imagealphablending($thumb, false);
+        imagesavealpha($thumb, true);
+    } else {
+        $bg = imagecolorallocate($thumb, 255, 255, 255);
+        imagefill($thumb, 0, 0, $bg);
+    }
+    imagecopyresampled($thumb, $img, 0, 0, 0, 0, $new_w, $new_h, $w, $h);
+    ob_start();
+    if ($ext === 'png') {
+        imagepng($thumb, null, 9);
+    } else {
+        imagejpeg($thumb, null, 25);
+    }
+    $data = ob_get_clean();
+    imagedestroy($img);
+    imagedestroy($thumb);
+    $mime = $ext === 'png' ? 'image/png' : 'image/jpeg';
+    return 'data:' . $mime . ';base64,' . base64_encode($data);
+}
+
 $pdo = pdo();
+
+$is_light = isset($_GET['no_img']) && $_GET['no_img'] == '1';
 
 $sqlItems = "
     SELECT 
@@ -98,7 +147,14 @@ $dateFormatted = date("d/m/Y H:i");
                 $st    = $itm['status_calculado'];
                 $fullSpec = "$brand $model<br><small class='color: #666;'>SN: $sn</small>";
                 $pic = $itm['Picture'];
-                $imgTag = $pic ? '<img src="'.h($pic).'" class="thumb">' : '<div style="width:40px;height:40px;background:#eee;color:#aaa;display:flex;align-items:center;justify-content:center;">N/A</div>';
+                
+                if ($pic && $is_light) {
+                    $pic_src = get_lightweight_image($pic);
+                } else {
+                    $pic_src = $pic ? h($pic) : '';
+                }
+                
+                $imgTag = $pic_src ? '<img src="'.$pic_src.'" class="thumb">' : '<div style="width:40px;height:40px;background:#eee;color:#aaa;display:flex;align-items:center;justify-content:center;">N/A</div>';
                 
                 $badgeClass = match($st) {
                     'Vencido' => 'badge-ven',

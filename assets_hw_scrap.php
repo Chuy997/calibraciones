@@ -3,21 +3,206 @@
 declare(strict_types=1);
 
 require_once __DIR__.'/config.php';
-require_auth(['admin','ingenieria']); // solo administradores
+require_auth(['admin','ingenieria']);
 
 function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
-$pdo = pdo();
+$pdo    = pdo();
 $errors = [];
 
-// --- Obtener y validar ID ---
+// --- Modo: listado de Scrap (sin ID) o formulario de confirmación (con ID) ---
 $id = $_GET['id'] ?? $_POST['id'] ?? '';
-if ($id === '' || !preg_match('/^[A-Za-z0-9._-]+$/', $id)) {
-  http_response_code(400);
-  exit('ID no proporcionado o inválido.');
+$listMode = ($id === '' || !preg_match('/^[A-Za-z0-9._-]+$/', $id));
+
+// ============================================================
+// MODO LISTA: mostrar todos los ítems en Scrap
+// ============================================================
+if ($listMode) {
+  $rows = $pdo->query("
+    SELECT ID, Description, Brand, Model, SerialNumber,
+           Location, Department, Owner, Status, Pedimento,
+           Picture, Document, Comments, UpdatedAt
+    FROM assets_hw_items
+    WHERE Status = 'Scrap'
+    ORDER BY UpdatedAt DESC
+  ")->fetchAll();
+?>
+<?php include __DIR__.'/partials/header.php'; ?>
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h1 class="h4 m-0"><i class="fa fa-dumpster me-2 text-warning"></i>Assets HW – Ítems en Scrap</h1>
+  <a href="assets_hw_admin.php" class="btn btn-outline-secondary">
+    <i class="fa fa-arrow-left me-1"></i>Volver al Inventario
+  </a>
+</div>
+
+<?php if (empty($rows)): ?>
+  <div class="alert alert-info">No hay ítems en Scrap actualmente.</div>
+<?php else: ?>
+<div class="card p-3 dt-container table-density-compact">
+  <div class="dt-toolbar mb-3">
+    <div class="input-group" style="max-width:320px;">
+      <span class="input-group-text"><i class="fa fa-magnifying-glass"></i></span>
+      <input type="text" class="form-control dt-search" placeholder="Buscar…">
+    </div>
+    <select class="form-select dt-rows-per-page ms-2" style="max-width:160px;">
+      <option value="20" selected>20 por página</option>
+      <option value="50">50 por página</option>
+      <option value="100">100 por página</option>
+    </select>
+    <small class="text-secondary ms-auto align-self-center"><?= count($rows) ?> ítem(s) en Scrap</small>
+  </div>
+
+  <div class="table-scroll">
+    <table class="table table-striped table-hover align-middle">
+      <thead>
+        <tr>
+          <th class="th-sort" data-sort="text">ID <span class="sort-ind">▲▼</span></th>
+          <th>Foto</th>
+          <th class="th-sort" data-sort="text">Descripción <span class="sort-ind">▲▼</span></th>
+          <th class="th-sort" data-sort="text">Marca <span class="sort-ind">▲▼</span></th>
+          <th class="th-sort" data-sort="text">Modelo <span class="sort-ind">▲▼</span></th>
+          <th class="th-sort" data-sort="text">Serie <span class="sort-ind">▲▼</span></th>
+          <th class="th-sort" data-sort="text">Asset No <span class="sort-ind">▲▼</span></th>
+          <th class="th-sort" data-sort="text">Ubicación <span class="sort-ind">▲▼</span></th>
+          <th class="th-sort" data-sort="date">Fecha Scrap <span class="sort-ind">▲▼</span></th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+      <?php foreach ($rows as $r): ?>
+        <tr>
+          <td><?= h($r['ID']) ?></td>
+          <td class="text-center">
+            <?php if (!empty($r['Picture'])): ?>
+              <img src="<?= h($r['Picture']) ?>" class="img-thumb" alt="img"
+                   data-bs-toggle="modal" data-bs-target="#imagePreviewModal"
+                   data-src="<?= h($r['Picture']) ?>">
+            <?php else: ?>—<?php endif; ?>
+          </td>
+          <td><?= h($r['Description']) ?></td>
+          <td><?= h($r['Brand']) ?></td>
+          <td><?= h($r['Model']) ?></td>
+          <td><?= h($r['SerialNumber']) ?></td>
+          <td><?= h($r['Pedimento'] ?? '') ?></td>
+          <td><?= h($r['Location']) ?></td>
+          <td><?= h($r['UpdatedAt']) ?></td>
+          <td>
+            <a href="assets_hw_history.php?id=<?= urlencode((string)$r['ID']) ?>"
+               class="btn btn-sm btn-info" title="Historial">
+              <i class="fa fa-clock-rotate-left"></i>
+            </a>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center mt-2">
+    <small class="text-secondary">Búsqueda y paginación en el navegador.</small>
+    <div class="dt-pager"></div>
+  </div>
+</div>
+
+<!-- Modal imagen -->
+<div class="modal fade" id="imagePreviewModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content bg-dark">
+      <div class="modal-header border-0">
+        <h5 class="modal-title">Vista previa</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body d-flex justify-content-center">
+        <img id="previewImage" src="" alt="Imagen" class="img-fluid rounded" style="max-height:75vh;">
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const imgModal = document.getElementById('imagePreviewModal');
+if (imgModal) {
+  imgModal.addEventListener('show.bs.modal', ev => {
+    const img = ev.relatedTarget;
+    const src = img?.getAttribute('data-src') || img?.getAttribute('src');
+    document.getElementById('previewImage').setAttribute('src', src || '');
+  });
+  imgModal.addEventListener('hidden.bs.modal', () => {
+    document.getElementById('previewImage').setAttribute('src', '');
+  });
 }
 
-// --- Cargar registro actual ---
+// Mini-datatable
+(function(){
+  const container = document.querySelector('.dt-container');
+  if (!container) return;
+  const table   = container.querySelector('table');
+  const tbody   = table.tBodies[0];
+  const search  = container.querySelector('.dt-search');
+  const rowsSel = container.querySelector('.dt-rows-per-page');
+  const pagerEl = container.querySelector('.dt-pager');
+
+  let sortCol = 0, sortDir = 1;
+  table.querySelectorAll('th.th-sort').forEach((th, idx) => {
+    th.addEventListener('click', () => {
+      const type = th.dataset.sort || 'text';
+      sortCol = idx; sortDir *= -1;
+      const rows = Array.from(tbody.rows);
+      rows.sort((a, b) => {
+        const A = a.cells[sortCol].innerText.trim();
+        const B = b.cells[sortCol].innerText.trim();
+        if (type === 'date') return (new Date(A) - new Date(B)) * sortDir;
+        return A.localeCompare(B, undefined, {numeric: true}) * sortDir;
+      });
+      rows.forEach(r => tbody.appendChild(r));
+    });
+  });
+
+  function applyFilters() {
+    const q = (search?.value || '').toLowerCase();
+    Array.from(tbody.rows).forEach(tr => {
+      tr.dataset.filtered = tr.innerText.toLowerCase().includes(q) ? '0' : '1';
+    });
+    page = 1;
+    paginate();
+  }
+  search?.addEventListener('input', applyFilters);
+
+  let page = 1;
+  function paginate() {
+    const per = parseInt(rowsSel.value, 10);
+    const all = Array.from(tbody.rows);
+    const vis = all.filter(r => r.dataset.filtered !== '1');
+    const pages = Math.max(1, Math.ceil(vis.length / per));
+    page = Math.min(page, pages);
+    all.forEach(tr => tr.style.display = 'none');
+    vis.forEach((tr, i) => {
+      if (i >= (page - 1) * per && i < page * per) tr.style.display = '';
+    });
+    pagerEl.innerHTML = '';
+    for (let p = 1; p <= pages; p++) {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-sm ' + (p === page ? 'btn-primary' : 'btn-outline-secondary');
+      btn.textContent = p;
+      btn.addEventListener('click', () => { page = p; paginate(); });
+      pagerEl.appendChild(btn);
+    }
+  }
+  rowsSel?.addEventListener('change', () => { page = 1; paginate(); });
+  applyFilters();
+})();
+</script>
+<?php endif; ?>
+
+<?php include __DIR__.'/partials/footer.php'; ?>
+<?php
+  exit; // fin del modo lista
+}
+
+// ============================================================
+// MODO FORMULARIO: confirmar Scrap de un ítem específico
+// ============================================================
 $stmt = $pdo->prepare("
   SELECT ID, Description, Brand, Model, SerialNumber,
          Location, Department, Owner, Status, Picture, Document, Comments
@@ -29,12 +214,10 @@ $item = $stmt->fetch();
 
 if (!$item) {
   http_response_code(404);
-  exit('Material Ingenieria no encontrado.');
+  exit('Asset HW no encontrado.');
 }
 
-// --- POST: procesar envío a Scrap ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  // CSRF
   if (!isset($_POST['csrf']) || !csrf_validate($_POST['csrf'])) {
     $errors[] = 'Sesión expirada. Vuelve a intentar.';
   }
@@ -46,17 +229,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 
   if (!$errors) {
-    // Si ya está en Scrap, no repetir
     if ((string)$item['Status'] === 'Scrap') {
-      // Ya en scrap: simplemente volver al admin con mensaje opcional
-      header('Location: assets_hw_admin.php');
+      header('Location: assets_hw_scrap.php');
       exit;
     }
 
     try {
       $pdo->beginTransaction();
 
-      // Actualizar estado a Scrap
       $upd = $pdo->prepare("
         UPDATE assets_hw_items
         SET Status = 'Scrap',
@@ -64,12 +244,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             UpdatedAt = NOW()
         WHERE ID = :id
       ");
-      $upd->execute([
-        ':reason' => $reason,
-        ':id'     => $id,
-      ]);
+      $upd->execute([':reason' => $reason, ':id' => $id]);
 
-      // Insertar historial (snapshot con estado Scrap)
       $hst = $pdo->prepare("
         INSERT INTO assets_hw_history
           (AssetsHWID, Action, Description, Brand, Model, SerialNumber,
@@ -79,7 +255,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
            :Location, :Department, :Owner, 'Scrap', :Picture, :Document, :Comments, NOW())
       ");
       $hst->execute([
-        ':AssetsHWID'     => $item['ID'],
+        ':AssetsHWID'   => $item['ID'],
         ':Description'  => $item['Description'],
         ':Brand'        => $item['Brand'],
         ':Model'        => $item['Model'],
@@ -93,7 +269,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       ]);
 
       $pdo->commit();
-      header('Location: assets_hw_admin.php');
+      header('Location: assets_hw_scrap.php');
       exit;
     } catch (Throwable $e) {
       if ($pdo->inTransaction()) $pdo->rollBack();
@@ -106,7 +282,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <div class="row justify-content-center">
   <div class="col-12 col-lg-8 col-xl-7">
-    <h1 class="h4 my-3">Enviar a Scrap</h1>
+    <div class="d-flex align-items-center gap-2 my-3">
+      <a href="assets_hw_scrap.php" class="btn btn-sm btn-outline-secondary">
+        <i class="fa fa-arrow-left"></i>
+      </a>
+      <h1 class="h4 m-0">Enviar a Scrap</h1>
+    </div>
 
     <div class="card p-3 mb-3">
       <div class="row g-2">
@@ -171,7 +352,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="alert alert-secondary">
         Este material ya se encuentra en <strong>Scrap</strong>.
       </div>
-      <a href="assets_hw_admin.php" class="btn btn-outline-secondary">Volver</a>
+      <a href="assets_hw_scrap.php" class="btn btn-outline-secondary">Volver al listado</a>
     <?php else: ?>
       <form method="POST" action="assets_hw_scrap.php" class="needs-validation" novalidate>
         <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
@@ -179,7 +360,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <div class="mb-3">
           <label for="reason" class="form-label">Motivo de Scrap <span class="text-danger">*</span></label>
-          <textarea id="reason" name="reason" class="form-control" rows="3" placeholder="Describe la razón por la que se da de baja…" required></textarea>
+          <textarea id="reason" name="reason" class="form-control" rows="3"
+                    placeholder="Describe la razón por la que se da de baja…" required></textarea>
           <div class="form-text">Se registrará en el historial y en los comentarios del material.</div>
         </div>
 
@@ -210,10 +392,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script>
-// Modal preview imagen
 const imgModal = document.getElementById('imagePreviewModal');
 if (imgModal) {
-  imgModal.addEventListener('show.bs.modal', (ev) => {
+  imgModal.addEventListener('show.bs.modal', ev => {
     const img = ev.relatedTarget;
     const src = img?.getAttribute('data-src') || img?.getAttribute('src');
     document.getElementById('previewImage').setAttribute('src', src || '');
