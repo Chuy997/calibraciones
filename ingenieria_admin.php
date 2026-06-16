@@ -3,33 +3,9 @@
 declare(strict_types=1);
 
 require_once __DIR__.'/config.php';
-require_auth(['admin','ingenieria']); // solo administradores
+require_auth(['admin','ingenieria']);
 
 function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
-
-// Consulta básica de inventario Ingenieria (sin tocar BD)
-$sql = <<<SQL
-SELECT
-  ID,
-  Description,
-  Brand,
-  Model,
-  SerialNumber,
-  Location,
-  Department,
-  Owner,
-  Status,
-  Picture,
-  Document,
-  Pedimento,
-  Comments,
-  CreatedAt,
-  UpdatedAt
-FROM ingenieria_items
-ORDER BY ID ASC
-SQL;
-
-$rows = pdo()->query($sql)->fetchAll();
 ?>
 <?php include __DIR__.'/partials/header.php'; ?>
 
@@ -38,26 +14,37 @@ $rows = pdo()->query($sql)->fetchAll();
   <div class="d-flex gap-2">
     <a class="btn btn-primary" href="ingenieria_audit.php"><i class="fa fa-clipboard-check me-1"></i> Auditar</a>
     <a class="btn btn-info text-white" href="ingenieria_packages.php"><i class="fa fa-box-open me-1"></i> Paquetes</a>
+    <a class="btn btn-warning text-dark" href="ingenieria_scrap.php"><i class="fa fa-triangle-exclamation me-1"></i> Scrap</a>
     <a class="btn btn-success" href="ingenieria_add.php"><i class="fa fa-plus me-1"></i> Nuevo</a>
   </div>
 </div>
 
+<?php if (!empty($_GET['deleted'])): ?>
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index:1100">
+  <div id="deleteToast" class="toast align-items-center text-bg-danger border-0 show" role="alert">
+    <div class="d-flex">
+      <div class="toast-body"><i class="fa fa-trash me-2"></i><strong>Material eliminado</strong> correctamente.</div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+</div>
+<script>setTimeout(()=>{ const t=document.getElementById('deleteToast'); if(t) new bootstrap.Toast(t,{delay:4000}).hide(); },4000);</script>
+<?php endif; ?>
+
 <div class="card p-3 table-density-comfort dt-container">
-  <div class="dt-toolbar">
-    <div class="input-group" style="max-width:320px;">
+  <!-- ── Toolbar ── -->
+  <div class="dt-toolbar mb-3">
+    <div class="input-group" style="max-width:340px;">
       <span class="input-group-text"><i class="fa fa-magnifying-glass"></i></span>
-      <input type="text" class="form-control dt-search" placeholder="Buscar…">
+      <input type="text" id="dtSearch" class="form-control" placeholder="Buscar…" autocomplete="off">
+      <button class="btn btn-outline-secondary" id="btnClearSearch" title="Limpiar" style="display:none;">
+        <i class="fa fa-xmark"></i>
+      </button>
     </div>
 
-    <select class="form-select dt-density" style="max-width:180px;">
-      <option value="comfort">Densidad: cómoda</option>
-      <option value="compact"selected>Densidad: compacta</option>
-    </select>
-
-    <select class="form-select dt-rows-per-page" style="max-width:160px;">
-      <option value="10">10 por página</option>
-      <option value="20">20 por página</option>
-      <option value="50"selected>50 por página</option>
+    <select class="form-select" id="dtRowsPer" style="max-width:160px;">
+      <option value="25">25 por página</option>
+      <option value="50" selected>50 por página</option>
       <option value="100">100 por página</option>
     </select>
 
@@ -66,21 +53,42 @@ $rows = pdo()->query($sql)->fetchAll();
       <div class="dropdown-menu dropdown-menu-dark p-2 colvis-menu">
         <?php
           $cols = [
-            'ID','Foto','Descripción','Marca','Modelo','Serie',
-            'Ubicación','Depto','Responsable','Estado','Documento','Pedimento','Acciones'
+            ['id'=>'col-id',    'label'=>'ID',            'checked'=>true],
+            ['id'=>'col-foto',  'label'=>'Foto',          'checked'=>true],
+            ['id'=>'col-desc',  'label'=>'Descripción',   'checked'=>true],
+            ['id'=>'col-marca', 'label'=>'Marca',         'checked'=>true],
+            ['id'=>'col-modelo','label'=>'Modelo',        'checked'=>true],
+            ['id'=>'col-serie', 'label'=>'Serie',         'checked'=>true],
+            ['id'=>'col-qty',   'label'=>'Qty',           'checked'=>true],
+            ['id'=>'col-hw',    'label'=>'HW Asset',      'checked'=>false],
+            ['id'=>'col-zl',    'label'=>'ZL Asset',      'checked'=>false],
+            ['id'=>'col-ai',    'label'=>'AI Asset',      'checked'=>false],
+            ['id'=>'col-xy',    'label'=>'XY Asset',      'checked'=>true],
+            ['id'=>'col-years', 'label'=>'Years',         'checked'=>true],
+            ['id'=>'col-come',  'label'=>'Come Form',     'checked'=>true],
+            ['id'=>'col-recv',  'label'=>'Received Date', 'checked'=>true],
+            ['id'=>'col-ubi',   'label'=>'Ubicación',     'checked'=>true],
+            ['id'=>'col-depto', 'label'=>'Depto',         'checked'=>true],
+            ['id'=>'col-resp',  'label'=>'Responsable',   'checked'=>true],
+            ['id'=>'col-est',   'label'=>'Estado',        'checked'=>true],
+            ['id'=>'col-doc',   'label'=>'Documento',     'checked'=>true],
+            ['id'=>'col-ped',   'label'=>'Pedimento',     'checked'=>true],
+            ['id'=>'col-acc',   'label'=>'Acciones',      'checked'=>true],
           ];
-          foreach ($cols as $i=>$c): ?>
+          foreach ($cols as $c): ?>
           <label class="dropdown-item d-flex align-items-center gap-2">
-            <input class="form-check-input me-2" type="checkbox" data-col="<?= $i ?>" checked>
-            <span><?= h($c) ?></span>
+            <input class="form-check-input me-2 colvis-chk" type="checkbox"
+                   data-col="<?= h($c['id']) ?>" <?= $c['checked'] ? 'checked' : '' ?>>
+            <span><?= h($c['label']) ?></span>
           </label>
         <?php endforeach; ?>
       </div>
     </div>
 
-    <div class="ms-auto d-flex gap-2">
+    <div class="ms-auto d-flex gap-2 align-items-center">
+      <small class="text-secondary" id="dtInfo">Cargando…</small>
       <div class="dropdown">
-        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
           <i class="fa fa-download"></i> Exportar
         </button>
         <ul class="dropdown-menu dropdown-menu-dark p-2">
@@ -96,98 +104,59 @@ $rows = pdo()->query($sql)->fetchAll();
           </li>
         </ul>
       </div>
-      <select class="form-select dt-filter" data-col="9" style="max-width:220px;">
+      <select class="form-select" id="dtFilterStatus" style="max-width:200px;">
         <option value="">Estado: todos</option>
-        <option>Activo</option>
-        <option>Scrap</option>
+        <option value="Activo">Activo</option>
       </select>
     </div>
   </div>
 
+  <!-- ── Tabla ── -->
   <div class="table-wrap">
     <div class="table-scroll">
       <table class="table table-striped table-hover align-middle" id="ingenieriaTable">
         <thead>
           <tr>
-            <th class="th-sort" data-sort="text">ID <span class="sort-ind">▲▼</span></th>
-            <th>Foto</th>
-            <th class="th-sort" data-sort="text">Descripción <span class="sort-ind">▲▼</span></th>
-            <th class="th-sort" data-sort="text">Marca <span class="sort-ind">▲▼</span></th>
-            <th class="th-sort" data-sort="text">Modelo <span class="sort-ind">▲▼</span></th>
-            <th class="th-sort" data-sort="text">Serie <span class="sort-ind">▲▼</span></th>
-            <th class="th-sort" data-sort="text">Ubicación <span class="sort-ind">▲▼</span></th>
-            <th class="th-sort" data-sort="text">Depto <span class="sort-ind">▲▼</span></th>
-            <th class="th-sort" data-sort="text">Responsable <span class="sort-ind">▲▼</span></th>
-            <th class="th-sort" data-sort="text">Estado <span class="sort-ind">▲▼</span></th>
-            <th>Documento</th>
-            <th class="th-sort" data-sort="text">Pedimento <span class="sort-ind">▲▼</span></th>
-            <th>Acciones</th>
+            <th data-col="col-id">ID</th>
+            <th data-col="col-foto">Foto</th>
+            <th data-col="col-desc">Descripción</th>
+            <th data-col="col-marca">Marca</th>
+            <th data-col="col-modelo">Modelo</th>
+            <th data-col="col-serie">Serie</th>
+            <th data-col="col-qty">Qty</th>
+            <th data-col="col-hw" style="display:none;">HW Asset</th>
+            <th data-col="col-zl" style="display:none;">ZL Asset</th>
+            <th data-col="col-ai" style="display:none;">AI Asset</th>
+            <th data-col="col-xy">XY Asset</th>
+            <th data-col="col-years">Years</th>
+            <th data-col="col-come">Come Form</th>
+            <th data-col="col-recv">Received Date</th>
+            <th data-col="col-ubi">Ubicación</th>
+            <th data-col="col-depto">Depto</th>
+            <th data-col="col-resp">Responsable</th>
+            <th data-col="col-est">Estado</th>
+            <th data-col="col-doc">Documento</th>
+            <th data-col="col-ped">Pedimento</th>
+            <th data-col="col-acc">Acciones</th>
           </tr>
         </thead>
-        <tbody>
-        <?php foreach ($rows as $r):
-          $status = (string)($r['Status'] ?? '');
-          $badge = $status === 'Scrap' ? 'badge-ven' : 'badge-cal'; // reuso estilos (rojo para Scrap / verde para Activo)
-        ?>
-          <tr>
-            <td><?= h($r['ID']) ?></td>
-            <td class="text-center">
-              <?php if (!empty($r['Picture'])): ?>
-                <!-- Miniatura con modal (igual a history) -->
-                <img src="<?= h($r['Picture']) ?>" class="img-thumb" alt="img"
-                     data-bs-toggle="modal" data-bs-target="#imagePreviewModal"
-                     data-src="<?= h($r['Picture']) ?>">
-              <?php else: ?>—<?php endif; ?>
-            </td>
-            <td><?= h($r['Description']) ?></td>
-            <td><?= h($r['Brand']) ?></td>
-            <td><?= h($r['Model']) ?></td>
-            <td><?= h($r['SerialNumber']) ?></td>
-            <td><?= h($r['Location']) ?></td>
-            <td><?= h($r['Department']) ?></td>
-            <td><?= h($r['Owner']) ?></td>
-            <td><span class="badge badge-state <?= $badge ?>"><?= h($status) ?></span></td>
-            <td class="text-center">
-              <?php if (!empty($r['Document'])): ?>
-                <a href="<?= h($r['Document']) ?>" target="_blank" class="btn btn-sm btn-outline-light" title="Ver documento PDF">
-                  <i class="fa fa-file-pdf"></i>
-                </a>
-              <?php else: ?>—<?php endif; ?>
-            </td>
-            <td><?= h($r['Pedimento']) ?></td>
-            <td>
-              <div class="btn-group">
-                <a class="btn btn-primary btn-sm" href="ingenieria_update.php?id=<?= urlencode((string)$r['ID']) ?>" title="Editar">
-                  <i class="fa fa-pen-to-square"></i>
-                </a>
-                <a class="btn btn-info btn-sm" href="ingenieria_history.php?id=<?= urlencode((string)$r['ID']) ?>" title="Historial">
-                  <i class="fa fa-clock-rotate-left"></i>
-                </a>
-                <?php if ($status !== 'Scrap'): ?>
-                  <a class="btn btn-warning btn-sm" href="ingenieria_scrap.php?id=<?= urlencode((string)$r['ID']) ?>" title="Enviar a Scrap">
-                    <i class="fa fa-triangle-exclamation"></i>
-                  </a>
-                <?php else: ?>
-                  <button class="btn btn-secondary btn-sm" disabled title="Ya en Scrap">
-                    <i class="fa fa-ban"></i>
-                  </button>
-                <?php endif; ?>
-              </div>
-            </td>
-          </tr>
-        <?php endforeach; ?>
+        <tbody id="dtBody">
+          <tr><td colspan="21" class="text-center py-4">
+            <div class="spinner-border spinner-border-sm text-secondary me-2"></div>Cargando inventario…
+          </td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
-  <div class="d-flex justify-content-between align-items-center mt-2">
-    <small class="text-secondary">Búsqueda, orden y paginación en el navegador.</small>
-    <div class="dt-pager"></div>
+  <!-- ── Paginación ── -->
+  <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
+    <small class="text-secondary">Búsqueda en servidor · resultados en tiempo real</small>
+    <div id="dtPager" class="d-flex gap-1 flex-wrap"></div>
   </div>
 </div>
 
-<!-- Modal imagen (reutiliza el de history) -->
+<!-- Modal imagen -->
 <div class="modal fade" id="imagePreviewModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content bg-dark">
@@ -203,101 +172,137 @@ $rows = pdo()->query($sql)->fetchAll();
 </div>
 
 <script>
-// Modal de imagen (igual a history)
-const imgModal = document.getElementById('imagePreviewModal');
-if (imgModal) {
-  imgModal.addEventListener('show.bs.modal', (ev) => {
-    const img = ev.relatedTarget;
-    const src = img?.getAttribute('data-src') || img?.getAttribute('src');
-    document.getElementById('previewImage').setAttribute('src', src || '');
-  });
-  imgModal.addEventListener('hidden.bs.modal', () => {
-    document.getElementById('previewImage').setAttribute('src', '');
-  });
-}
+(function () {
+  'use strict';
 
-// Mini-datatable
-(function(){
-  const container = document.querySelector('.dt-container');
-  if (!container) return;
-  const table   = container.querySelector('table');
-  const tbody   = table.tBodies[0];
-  const search  = container.querySelector('.dt-search');
-  const rowsSel = container.querySelector('.dt-rows-per-page');
-  const pagerEl = container.querySelector('.dt-pager');
-  const colvis  = container.querySelectorAll('.colvis-menu input[type="checkbox"]');
-  const filter  = container.querySelector('.dt-filter');
-  const density = container.querySelector('.dt-density');
+  // ── Estado ──────────────────────────────────────────────────────────────────
+  let page    = 1;
+  let debTimer= null;
 
-  // Orden
-  let sortCol = 0, sortDir = 1;
-  table.querySelectorAll('th.th-sort').forEach((th,idx)=>{
-    th.addEventListener('click', ()=>{
-      const type = th.dataset.sort || 'text';
-      sortCol = idx; sortDir *= -1;
-      const rows = Array.from(tbody.rows);
-      rows.sort((a,b)=>{
-        const A = a.cells[sortCol].innerText.trim();
-        const B = b.cells[sortCol].innerText.trim();
-        if (type==='num') return (parseFloat(A)||0 - (parseFloat(B)||0))*sortDir;
-        if (type==='date') return (new Date(A) - new Date(B))*sortDir;
-        return A.localeCompare(B, undefined, {numeric:true}) * sortDir;
-      });
-      rows.forEach(r=>tbody.appendChild(r));
-    });
-  });
+  const body     = document.getElementById('dtBody');
+  const pager    = document.getElementById('dtPager');
+  const info     = document.getElementById('dtInfo');
+  const search   = document.getElementById('dtSearch');
+  const perSel   = document.getElementById('dtRowsPer');
+  const statusSel= document.getElementById('dtFilterStatus');
+  const clearBtn = document.getElementById('btnClearSearch');
 
-  // Búsqueda + filtro por estado
-  function applyFilters(){
-    const q = (search?.value || '').toLowerCase();
-    const f = (filter?.value || '');
-    Array.from(tbody.rows).forEach(tr=>{
-      const matchText = tr.innerText.toLowerCase().includes(q);
-      const estado = tr.cells[9]?.innerText.trim() || '';
-      const matchEstado = !f || estado === f;
-      tr.style.display = (matchText && matchEstado) ? '' : 'none';
-    });
-    paginate();
-  }
-  search?.addEventListener('input', applyFilters);
-  filter?.addEventListener('change', applyFilters);
+  // ── Fetch ────────────────────────────────────────────────────────────────────
+  function load() {
+    const q      = search.value.trim();
+    const status = statusSel.value;
+    const per    = perSel.value;
+    const url    = `ingenieria_ajax.php?q=${encodeURIComponent(q)}&status=${encodeURIComponent(status)}&page=${page}&per=${per}`;
 
-  // Visibilidad de columnas
-  colvis.forEach(chk=>{
-    chk.addEventListener('change', ()=>{
-      const col = parseInt(chk.dataset.col,10);
-      table.querySelectorAll(`thead th:nth-child(${col+1}), tbody td:nth-child(${col+1})`)
-           .forEach(el=>el.style.display = chk.checked ? '' : 'none');
-    });
-  });
-
-  // Densidad
-  density?.addEventListener('change', ()=>{
-    const val = density.value; // comfort | compact
-    container.classList.toggle('table-density-compact', val === 'compact');
-    container.classList.toggle('table-density-comfort', val !== 'compact');
-  });
-
-  // Paginación
-  let page = 1;
-  function paginate(){
-    const per  = parseInt(rowsSel.value,10);
-    const visi = Array.from(tbody.rows).filter(r=>r.style.display!=='none');
-    const pages= Math.max(1, Math.ceil(visi.length/per));
-    page = Math.min(page, pages);
-    visi.forEach((tr,i)=> tr.style.display = (i>=(page-1)*per && i<page*per) ? tr.style.display : 'none');
-    pagerEl.innerHTML = '';
-    for (let p=1;p<=pages;p++){
-      const btn = document.createElement('button');
-      btn.className = 'btn btn-sm '+(p===page?'btn-primary':'btn-outline-secondary');
-      btn.textContent = p;
-      btn.addEventListener('click', ()=>{ page=p; paginate(); });
-      pagerEl.appendChild(btn);
+    // Mostrar spinner solo si el tbody no tiene contenido real
+    if (!body.querySelector('tr td[colspan]')) {
+      body.style.opacity = '0.4';
     }
-  }
-  rowsSel?.addEventListener('change', ()=>{ page=1; paginate(); });
 
-  applyFilters();
+    fetch(url)
+      .then(r => r.json())
+      .then(data => {
+        body.style.opacity = '';
+        body.innerHTML = data.html || '<tr><td colspan="21" class="text-center text-secondary py-4">Sin resultados.</td></tr>';
+        info.textContent = `${data.total.toLocaleString()} registro(s) · página ${data.page}/${data.pages}`;
+        renderPager(data.pages, data.page);
+        // Re-bind image modal a las nuevas filas
+        bindImageModal();
+        // Aplicar visibilidad de columnas actual
+        applyColVis();
+      })
+      .catch(() => {
+        body.style.opacity = '';
+        body.innerHTML = '<tr><td colspan="21" class="text-center text-danger py-3">Error al cargar datos.</td></tr>';
+      });
+  }
+
+  // ── Paginador ────────────────────────────────────────────────────────────────
+  function renderPager(pages, current) {
+    pager.innerHTML = '';
+    if (pages <= 1) return;
+
+    const mkBtn = (label, p, disabled, active) => {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-sm ' + (active ? 'btn-primary' : 'btn-outline-secondary');
+      btn.textContent = label;
+      btn.disabled = disabled;
+      if (!disabled) btn.addEventListener('click', () => { page = p; load(); });
+      return btn;
+    };
+
+    pager.appendChild(mkBtn('«', 1,       current === 1,     false));
+    pager.appendChild(mkBtn('‹', current-1, current === 1,   false));
+
+    // Ventana de páginas
+    let start = Math.max(1, current - 2);
+    let end   = Math.min(pages, start + 4);
+    start     = Math.max(1, end - 4);
+    for (let p = start; p <= end; p++) {
+      pager.appendChild(mkBtn(p, p, false, p === current));
+    }
+
+    pager.appendChild(mkBtn('›', current+1, current === pages, false));
+    pager.appendChild(mkBtn('»', pages,     current === pages, false));
+  }
+
+  // ── Debounce búsqueda ────────────────────────────────────────────────────────
+  search.addEventListener('input', () => {
+    clearTimeout(debTimer);
+    clearBtn.style.display = search.value ? '' : 'none';
+    debTimer = setTimeout(() => { page = 1; load(); }, 350);
+  });
+
+  clearBtn.addEventListener('click', () => {
+    search.value = '';
+    clearBtn.style.display = 'none';
+    page = 1; load();
+  });
+
+  perSel.addEventListener('change',    () => { page = 1; load(); });
+  statusSel.addEventListener('change', () => { page = 1; load(); });
+
+  // ── Visibilidad de columnas ──────────────────────────────────────────────────
+  const table = document.getElementById('ingenieriaTable');
+
+  function applyColVis() {
+    document.querySelectorAll('.colvis-chk').forEach(chk => {
+      const colId = chk.dataset.col;
+      const show  = chk.checked;
+      table.querySelectorAll(`[data-col="${colId}"]`)
+           .forEach(el => el.style.display = show ? '' : 'none');
+    });
+  }
+
+  document.querySelectorAll('.colvis-chk').forEach(chk => {
+    chk.addEventListener('change', applyColVis);
+  });
+  applyColVis(); // aplicar defaults (ocultar HW/ZL/AI)
+
+  // ── Modal imagen ─────────────────────────────────────────────────────────────
+  function bindImageModal() {
+    const modal = document.getElementById('imagePreviewModal');
+    if (!modal) return;
+    // Bootstrap ya delega por data-bs-toggle; sólo actualizar src
+    modal.addEventListener('show.bs.modal', ev => {
+      const img = ev.relatedTarget;
+      document.getElementById('previewImage').src = img?.dataset?.src || img?.src || '';
+    }, { once: false });
+  }
+
+  const imgModal = document.getElementById('imagePreviewModal');
+  if (imgModal) {
+    imgModal.addEventListener('show.bs.modal', ev => {
+      const img = ev.relatedTarget;
+      document.getElementById('previewImage').src = img?.dataset?.src || img?.src || '';
+    });
+    imgModal.addEventListener('hidden.bs.modal', () => {
+      document.getElementById('previewImage').src = '';
+    });
+  }
+
+  // ── Carga inicial ────────────────────────────────────────────────────────────
+  load();
 })();
 </script>
 

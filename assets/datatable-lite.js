@@ -170,17 +170,24 @@
   window.addEventListener('DOMContentLoaded', () => {
     qa('.dt-container').forEach(container => {
       // Sorting
-      qa('thead th.th-sort', container).forEach((th, idx) => {
+      qa('thead th', container).forEach((th) => {
+        if (!th.innerText.trim() || th.classList.contains('no-sort')) return;
+        th.style.cursor = 'pointer';
+        th.title = 'Clic para ordenar';
         th.addEventListener('click', () => {
           const table = th.closest('table');
           const tbody = table.tBodies[0];
           const type = th.dataset.sort || 'text';
           const cur  = th.dataset.dir === 'asc' ? 'desc' : 'asc';
-          qa('thead th.th-sort', container).forEach(t => t.classList.remove('active'));
-          th.classList.add('active'); th.dataset.dir = cur;
-          const ind = th.querySelector('.sort-ind');
-          if (ind) ind.textContent = cur === 'asc' ? '▲' : '▼';
-          sortTable(tbody, idx, cur, type);
+          qa('thead th', container).forEach(t => {
+            t.classList.remove('active');
+            const ind = t.querySelector('.sort-ind');
+            if (ind) ind.remove();
+          });
+          th.classList.add('active'); 
+          th.dataset.dir = cur;
+          th.insertAdjacentHTML('beforeend', `<span class="sort-ind ms-1">${cur === 'asc' ? '▲' : '▼'}</span>`);
+          sortTable(tbody, th.cellIndex, cur, type);
         });
       });
 

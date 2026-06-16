@@ -27,6 +27,7 @@ SELECT
   CreatedAt,
   UpdatedAt
 FROM golden_items
+WHERE Status NOT IN ('Scrap', 'Destruido')
 ORDER BY ID ASC
 SQL;
 
@@ -103,7 +104,6 @@ $rows = pdo()->query($sql)->fetchAll();
       <select class="form-select dt-filter" data-col="9" style="max-width:220px;">
         <option value="">Estado: todos</option>
         <option>Activo</option>
-        <option>Scrap</option>
       </select>
     </div>
   </div>

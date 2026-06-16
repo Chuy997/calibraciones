@@ -41,7 +41,7 @@ $st = $pdo->prepare("
     ID, Description, Brand, Model, SerialNumber,
     Pedimento,
     Location, Department, Owner, Status,
-    Picture, Document, Comments, CreatedAt, UpdatedAt
+    Picture, Document, Comments, Qty, HW_NRE, HW_Asset, ZL_Asset, AI_Asset, ReceivedDate, XY_Asset, Years, Come_form, CreatedAt, UpdatedAt
   FROM ingenieria_items
   WHERE ID = ?
 ");
@@ -65,6 +65,15 @@ $values = [
   'owner'        => (string)($item['Owner']        ?? ''),
   'status'       => (string)($item['Status']       ?? 'Activo'),
   'comments'     => (string)($item['Comments']     ?? ''),
+  'qty'          => (string)($item['Qty']          ?? '1'),
+  'hw_nre'       => (string)($item['HW_NRE']       ?? ''),
+  'hw_asset'     => (string)($item['HW_Asset']     ?? ''),
+  'zl_asset'     => (string)($item['ZL_Asset']     ?? ''),
+  'ai_asset'     => (string)($item['AI_Asset']     ?? ''),
+  'received_date'=> (string)($item['ReceivedDate'] ?? ''),
+  'xy_asset'     => (string)($item['XY_Asset']     ?? ''),
+  'years'        => (string)($item['Years']        ?? ''),
+  'come_form'    => (string)($item['Come_form']    ?? ''),
 ];
 
 $currPicture  = (string)($item['Picture']  ?? '');
@@ -150,7 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 
   // Recoger (ID no editable)
-  foreach (['description','brand','model','serialNumber','pedimento','location','department','owner','comments'] as $k) {
+  foreach (['description','brand','model','serialNumber','pedimento','location','department','owner','comments','qty','hw_nre','hw_asset','zl_asset','ai_asset','received_date'] as $k) {
     $values[$k] = trim((string)($_POST[$k] ?? ''));
   }
   // Status no se edita aquí; si lo envían por error, se ignora
@@ -197,6 +206,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                Comments     = :Comments,
                Picture      = :Picture,
                Document     = :Document,
+               Qty          = :Qty,
+               HW_NRE       = :HW_NRE,
+               HW_Asset     = :HW_Asset,
+               ZL_Asset     = :ZL_Asset,
+               AI_Asset     = :AI_Asset,
+               ReceivedDate = :ReceivedDate,
+               XY_Asset     = :XY_Asset,
+               Years        = :Years,
+               Come_form    = :Come_form,
                UpdatedAt    = NOW()
          WHERE ID = :ID
       ");
@@ -212,15 +230,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ':Comments'     => $values['comments'] ?: null,
         ':Picture'      => $currPicture ?: null,
         ':Document'     => $currDocument ?: null,
+        ':Qty'          => $values['qty'] ?: 1,
+        ':HW_NRE'       => $values['hw_nre'] ?: null,
+        ':HW_Asset'     => $values['hw_asset'] ?: null,
+        ':ZL_Asset'     => $values['zl_asset'] ?: null,
+        ':AI_Asset'     => $values['ai_asset'] ?: null,
+        ':ReceivedDate' => $values['received_date'] ?: null,
+        ':XY_Asset'     => $values['xy_asset'] ?: null,
+        ':Years'        => $values['years'] ?: null,
+        ':Come_form'    => $values['come_form'] ?: null,
         ':ID'           => $id,
       ]);
 
       // Historial de actualización (auditoría) — incluye Pedimento
       $hst = $pdo->prepare("
         INSERT INTO ingenieria_history
-          (IngenieriaID, Action, Description, Brand, Model, SerialNumber, Pedimento, Location, Department, Owner, Status, Picture, Document, Comments, CreatedAt)
+          (IngenieriaID, Action, Description, Brand, Model, SerialNumber, Pedimento, Location, Department, Owner, Status, Picture, Document, Comments, Qty, HW_NRE, HW_Asset, ZL_Asset, AI_Asset, ReceivedDate, XY_Asset, Years, Come_form, CreatedAt)
         VALUES
-          (:IngenieriaID,'update',:Description,:Brand,:Model,:SerialNumber,:Pedimento,:Location,:Department,:Owner,:Status,:Picture,:Document,:Comments,NOW())
+          (:IngenieriaID,'update',:Description,:Brand,:Model,:SerialNumber,:Pedimento,:Location,:Department,:Owner,:Status,:Picture,:Document,:Comments,:Qty,:HW_NRE,:HW_Asset,:ZL_Asset,:AI_Asset,:ReceivedDate,:XY_Asset,:Years,:Come_form,NOW())
       ");
       $hst->execute([
         ':IngenieriaID'     => $id,
@@ -236,6 +263,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ':Picture'      => $currPicture ?: null,
         ':Document'     => $currDocument ?: null,
         ':Comments'     => $values['comments'] ?: null,
+        ':Qty'          => $values['qty'] ?: 1,
+        ':HW_NRE'       => $values['hw_nre'] ?: null,
+        ':HW_Asset'     => $values['hw_asset'] ?: null,
+        ':ZL_Asset'     => $values['zl_asset'] ?: null,
+        ':AI_Asset'     => $values['ai_asset'] ?: null,
+        ':ReceivedDate' => $values['received_date'] ?: null,
+        ':XY_Asset'     => $values['xy_asset'] ?: null,
+        ':Years'        => $values['years'] ?: null,
+        ':Come_form'    => $values['come_form'] ?: null,
       ]);
 
       $pdo->commit();
@@ -304,6 +340,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="col-md-6">
           <label for="pedimento" class="form-label">Pedimento (opcional)</label>
           <input type="text" id="pedimento" name="pedimento" class="form-control" value="<?= h($values['pedimento']) ?>" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
+        </div>
+
+        <div class="col-sm-6">
+          <label for="qty" class="form-label">Cantidad (Qty)</label>
+          <input type="number" id="qty" name="qty" class="form-control" value="<?= h($values['qty']) ?>" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
+        </div>
+
+        <div class="col-sm-3">
+          <label for="hw_nre" class="form-label">HW NRE no.</label>
+          <input type="text" id="hw_nre" name="hw_nre" class="form-control" value="<?= h($values['hw_nre']) ?>" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
+        </div>
+        <div class="col-sm-3">
+          <label for="hw_asset" class="form-label">HW Asset</label>
+          <input type="text" id="hw_asset" name="hw_asset" class="form-control" value="<?= h($values['hw_asset']) ?>" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
+        </div>
+        <div class="col-sm-3">
+          <label for="zl_asset" class="form-label">ZL Asset</label>
+          <input type="text" id="zl_asset" name="zl_asset" class="form-control" value="<?= h($values['zl_asset']) ?>" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
+        </div>
+        <div class="col-sm-3">
+          <label for="ai_asset" class="form-label">AI Asset</label>
+          <input type="text" class="form-control" id="ai_asset" name="ai_asset" value="<?= h($values['ai_asset']) ?>">
+        </div>
+        <div class="col-sm-3">
+          <label for="xy_asset" class="form-label">XY Asset</label>
+          <input type="text" class="form-control" id="xy_asset" name="xy_asset" value="<?= h($values['xy_asset']) ?>">
+        </div>
+
+        <div class="col-sm-4">
+          <label for="received_date" class="form-label">Fecha de Recepción</label>
+          <input type="text" class="form-control" id="received_date" name="received_date" value="<?= h($values['received_date']) ?>" placeholder="Ej. 2023-01-06">
+        </div>
+        <div class="col-sm-4">
+          <label for="years" class="form-label">Years</label>
+          <input type="text" class="form-control" id="years" name="years" value="<?= h($values['years']) ?>">
+        </div>
+        <div class="col-sm-4">
+          <label for="come_form" class="form-label">Come form</label>
+          <input type="text" class="form-control" id="come_form" name="come_form" value="<?= h($values['come_form']) ?>">
         </div>
 
         <div class="col-md-6">

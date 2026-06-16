@@ -18,7 +18,7 @@ $ALLOWED_PDF_EXT = ['pdf'];
 // --- Utilidad: siguiente ID ING-XXX ---
 function next_ingenieria_id(PDO $pdo): string {
     // Toma el máximo numérico de IDs ING-###
-    $st = $pdo->query("SELECT MAX(CAST(SUBSTRING(ID, 7) AS UNSIGNED)) AS maxnum
+    $st = $pdo->query("SELECT MAX(CAST(SUBSTRING(ID, 5) AS UNSIGNED)) AS maxnum
                        FROM ingenieria_items
                        WHERE ID LIKE 'ING-%'");
     $max = (int)($st->fetchColumn() ?: 0);
@@ -42,6 +42,15 @@ $values = [
   'owner'        => '',
   'status'       => 'Activo',    // por defecto
   'comments'     => '',
+  'qty'          => '1',
+  'hw_nre'       => '',
+  'hw_asset'     => '',
+  'zl_asset'     => '',
+  'ai_asset'     => '',
+  'received_date'=> '',
+  'xy_asset'     => '',
+  'years'        => '',
+  'come_form'    => '',
 ];
 
 // --- Helpers subida ---
@@ -159,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Recoger (sin ID: se genera automáticamente)
-    foreach (['description','brand','model','serialNumber','pedimento','location','department','owner','status','comments'] as $k) {
+    foreach (['description','brand','model','serialNumber','pedimento','location','department','owner','status','comments','qty','hw_nre','hw_asset','zl_asset','ai_asset','received_date','xy_asset','years','come_form'] as $k) {
         $values[$k] = trim((string)($_POST[$k] ?? ''));
     }
 
@@ -187,9 +196,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Insert principal (incluye Pedimento e ID auto)
             $ins = $pdo->prepare("
                 INSERT INTO ingenieria_items
-                  (ID, Description, Brand, Model, SerialNumber, Pedimento, Location, Department, Owner, Status, Picture, Document, Comments, CreatedAt, UpdatedAt)
+                  (ID, Description, Brand, Model, SerialNumber, Pedimento, Location, Department, Owner, Status, Picture, Document, Comments, Qty, HW_NRE, HW_Asset, ZL_Asset, AI_Asset, ReceivedDate, XY_Asset, Years, Come_form, CreatedAt, UpdatedAt)
                 VALUES
-                  (:ID,:Description,:Brand,:Model,:SerialNumber,:Pedimento,:Location,:Department,:Owner,:Status,:Picture,:Document,:Comments,NOW(),NOW())
+                  (:ID,:Description,:Brand,:Model,:SerialNumber,:Pedimento,:Location,:Department,:Owner,:Status,:Picture,:Document,:Comments,:Qty,:HW_NRE,:HW_Asset,:ZL_Asset,:AI_Asset,:ReceivedDate,:XY_Asset,:Years,:Come_form,NOW(),NOW())
             ");
             $ins->execute([
               ':ID'           => $newId,
@@ -205,14 +214,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               ':Picture'      => $pictureRel,
               ':Document'     => $documentRel,
               ':Comments'     => $values['comments'] ?: null,
+              ':Qty'          => $values['qty'] ?: 1,
+              ':HW_NRE'       => $values['hw_nre'] ?: null,
+              ':HW_Asset'     => $values['hw_asset'] ?: null,
+              ':ZL_Asset'     => $values['zl_asset'] ?: null,
+              ':AI_Asset'     => $values['ai_asset'] ?: null,
+              ':ReceivedDate' => $values['received_date'] ?: null,
+              ':XY_Asset'     => $values['xy_asset'] ?: null,
+              ':Years'        => $values['years'] ?: null,
+              ':Come_form'    => $values['come_form'] ?: null,
             ]);
 
             // Historial inicial (incluye Pedimento)
             $hst = $pdo->prepare("
                 INSERT INTO ingenieria_history
-                  (IngenieriaID, Action, Description, Brand, Model, SerialNumber, Pedimento, Location, Department, Owner, Status, Picture, Document, Comments, CreatedAt)
+                  (IngenieriaID, Action, Description, Brand, Model, SerialNumber, Pedimento, Location, Department, Owner, Status, Picture, Document, Comments, Qty, HW_NRE, HW_Asset, ZL_Asset, AI_Asset, ReceivedDate, XY_Asset, Years, Come_form, CreatedAt)
                 VALUES
-                  (:IngenieriaID,'create',:Description,:Brand,:Model,:SerialNumber,:Pedimento,:Location,:Department,:Owner,:Status,:Picture,:Document,:Comments,NOW())
+                  (:IngenieriaID,'create',:Description,:Brand,:Model,:SerialNumber,:Pedimento,:Location,:Department,:Owner,:Status,:Picture,:Document,:Comments,:Qty,:HW_NRE,:HW_Asset,:ZL_Asset,:AI_Asset,:ReceivedDate,:XY_Asset,:Years,:Come_form,NOW())
             ");
             $hst->execute([
               ':IngenieriaID'     => $newId,
@@ -228,6 +246,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               ':Picture'      => $pictureRel,
               ':Document'     => $documentRel,
               ':Comments'     => $values['comments'] ?: null,
+              ':Qty'          => $values['qty'] ?: 1,
+              ':HW_NRE'       => $values['hw_nre'] ?: null,
+              ':HW_Asset'     => $values['hw_asset'] ?: null,
+              ':ZL_Asset'     => $values['zl_asset'] ?: null,
+              ':AI_Asset'     => $values['ai_asset'] ?: null,
+              ':ReceivedDate' => $values['received_date'] ?: null,
+              ':XY_Asset'     => $values['xy_asset'] ?: null,
+              ':Years'        => $values['years'] ?: null,
+              ':Come_form'    => $values['come_form'] ?: null,
             ]);
 
             $pdo->commit();
@@ -291,6 +318,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="col-sm-6">
           <label for="pedimento" class="form-label">Pedimento (opcional)</label>
           <input type="text" class="form-control" id="pedimento" name="pedimento" value="<?= h($values['pedimento']) ?>" placeholder="Ej. 21 48 1234 0001234">
+        </div>
+
+        <div class="col-sm-6">
+          <label for="qty" class="form-label">Cantidad (Qty)</label>
+          <input type="number" class="form-control" id="qty" name="qty" value="<?= h($values['qty']) ?>" placeholder="1">
+        </div>
+
+        <div class="col-sm-3">
+          <label for="hw_nre" class="form-label">HW NRE no.</label>
+          <input type="text" class="form-control" id="hw_nre" name="hw_nre" value="<?= h($values['hw_nre']) ?>">
+        </div>
+        <div class="col-sm-3">
+          <label for="hw_asset" class="form-label">HW Asset</label>
+          <input type="text" class="form-control" id="hw_asset" name="hw_asset" value="<?= h($values['hw_asset']) ?>">
+        </div>
+        <div class="col-sm-3">
+          <label for="zl_asset" class="form-label">ZL Asset</label>
+          <input type="text" class="form-control" id="zl_asset" name="zl_asset" value="<?= h($values['zl_asset']) ?>">
+        </div>
+        <div class="col-sm-3">
+          <label for="ai_asset" class="form-label">AI Asset</label>
+          <input type="text" class="form-control" id="ai_asset" name="ai_asset" value="<?= h($values['ai_asset']) ?>">
+        </div>
+        <div class="col-sm-3">
+          <label for="xy_asset" class="form-label">XY Asset</label>
+          <input type="text" class="form-control" id="xy_asset" name="xy_asset" value="<?= h($values['xy_asset']) ?>">
+        </div>
+
+        <div class="col-sm-4">
+          <label for="received_date" class="form-label">Fecha de Recepción</label>
+          <input type="text" class="form-control" id="received_date" name="received_date" value="<?= h($values['received_date']) ?>" placeholder="Ej. 2023-01-06">
+        </div>
+        <div class="col-sm-4">
+          <label for="years" class="form-label">Years</label>
+          <input type="text" class="form-control" id="years" name="years" value="<?= h($values['years']) ?>">
+        </div>
+        <div class="col-sm-4">
+          <label for="come_form" class="form-label">Come form</label>
+          <input type="text" class="form-control" id="come_form" name="come_form" value="<?= h($values['come_form']) ?>">
         </div>
 
         <div class="col-12 col-md-6">

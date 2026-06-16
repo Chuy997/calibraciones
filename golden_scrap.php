@@ -10,6 +10,126 @@ function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES,
 $pdo    = pdo();
 $errors = [];
 
+// --- Manejo de edición de comentarios ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit_comment') {
+  if (!isset($_POST['csrf']) || !csrf_validate($_POST['csrf'])) {
+    $errors[] = 'Sesión expirada. Vuelve a intentar.';
+  } else {
+    $edit_id = $_POST['edit_id'] ?? '';
+    $new_comments = $_POST['comments'] ?? '';
+
+    if ($edit_id !== '') {
+      try {
+        $pdo->beginTransaction();
+
+        $upd = $pdo->prepare("
+          UPDATE golden_items 
+          SET Comments = :comments, UpdatedAt = NOW() 
+          WHERE ID = :id AND Status = 'Scrap'
+        ");
+        $upd->execute([':comments' => $new_comments, ':id' => $edit_id]);
+
+        $item = $pdo->prepare("SELECT * FROM golden_items WHERE ID = :id");
+        $item->execute([':id' => $edit_id]);
+        $itemData = $item->fetch();
+
+        if ($itemData) {
+          $hst = $pdo->prepare("
+            INSERT INTO golden_history
+              (GoldenID, Action, Description, Brand, Model, SerialNumber,
+               Location, Department, Owner, Status, Picture, Document, Comments, CreatedAt)
+            VALUES
+              (:GoldenID, 'update', :Description, :Brand, :Model, :SerialNumber,
+               :Location, :Department, :Owner, :Status, :Picture, :Document, :Comments, NOW())
+          ");
+          $hst->execute([
+            ':GoldenID'     => $itemData['ID'],
+            ':Description'  => $itemData['Description'],
+            ':Brand'        => $itemData['Brand'],
+            ':Model'        => $itemData['Model'],
+            ':SerialNumber' => $itemData['SerialNumber'],
+            ':Location'     => $itemData['Location'],
+            ':Department'   => $itemData['Department'],
+            ':Owner'        => $itemData['Owner'],
+            ':Status'       => $itemData['Status'],
+            ':Picture'      => $itemData['Picture'],
+            ':Document'     => $itemData['Document'],
+            ':Comments'     => $itemData['Comments']
+          ]);
+        }
+
+        $pdo->commit();
+        header('Location: golden_scrap.php');
+        exit;
+      } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        $errors[] = 'Error al editar comentario: ' . $e->getMessage();
+      }
+    }
+  }
+}
+
+// --- Manejo de restauración de Scrap a Activo ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'restore') {
+  if (!isset($_POST['csrf']) || !csrf_validate($_POST['csrf'])) {
+    $errors[] = 'Sesión expirada. Vuelve a intentar.';
+  } else {
+    $restore_id = $_POST['restore_id'] ?? '';
+    $restore_reason = trim((string)($_POST['reason'] ?? ''));
+
+    if ($restore_id !== '') {
+      try {
+        $pdo->beginTransaction();
+
+        $item = $pdo->prepare("SELECT * FROM golden_items WHERE ID = :id");
+        $item->execute([':id' => $restore_id]);
+        $itemData = $item->fetch();
+
+        if ($itemData && $itemData['Status'] === 'Scrap') {
+          $reasonText = $restore_reason !== '' ? " - Motivo: " . $restore_reason : "";
+          $new_comment = trim(($itemData['Comments'] ? ($itemData['Comments']."\n") : '') . "[Restaurado de Scrap]" . $reasonText);
+
+          $upd = $pdo->prepare("
+            UPDATE golden_items 
+            SET Status = 'Activo', Comments = :comments, UpdatedAt = NOW() 
+            WHERE ID = :id
+          ");
+          $upd->execute([':comments' => $new_comment, ':id' => $restore_id]);
+
+          $hst = $pdo->prepare("
+            INSERT INTO golden_history
+              (GoldenID, Action, Description, Brand, Model, SerialNumber,
+               Location, Department, Owner, Status, Picture, Document, Comments, CreatedAt)
+            VALUES
+              (:GoldenID, 'update', :Description, :Brand, :Model, :SerialNumber,
+               :Location, :Department, :Owner, 'Activo', :Picture, :Document, :Comments, NOW())
+          ");
+          $hst->execute([
+            ':GoldenID'     => $itemData['ID'],
+            ':Description'  => $itemData['Description'],
+            ':Brand'        => $itemData['Brand'],
+            ':Model'        => $itemData['Model'],
+            ':SerialNumber' => $itemData['SerialNumber'],
+            ':Location'     => $itemData['Location'],
+            ':Department'   => $itemData['Department'],
+            ':Owner'        => $itemData['Owner'],
+            ':Picture'      => $itemData['Picture'],
+            ':Document'     => $itemData['Document'],
+            ':Comments'     => $new_comment
+          ]);
+        }
+
+        $pdo->commit();
+        header('Location: golden_scrap.php');
+        exit;
+      } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        $errors[] = 'Error al restaurar ítem: ' . $e->getMessage();
+      }
+    }
+  }
+}
+
 // --- Modo: listado (sin ID) o formulario de confirmación (con ID) ---
 $id       = $_GET['id'] ?? $_POST['id'] ?? '';
 $listMode = ($id === '' || !preg_match('/^[A-Za-z0-9._-]+$/', $id));
@@ -31,10 +151,25 @@ if ($listMode) {
 
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
   <h1 class="h4 m-0"><i class="fa fa-dumpster me-2 text-warning"></i>Golden – Ítems en Scrap</h1>
-  <a href="golden_admin.php" class="btn btn-outline-secondary">
-    <i class="fa fa-arrow-left me-1"></i>Volver al Inventario
-  </a>
+  <div>
+    <a href="golden_scrap_download.php" target="_blank" class="btn btn-danger me-2">
+      <i class="fa fa-file-pdf me-1"></i>Descargar PDF
+    </a>
+    <a href="golden_admin.php" class="btn btn-outline-secondary">
+      <i class="fa fa-arrow-left me-1"></i>Volver al Inventario
+    </a>
+  </div>
 </div>
+
+<?php if ($errors): ?>
+  <div class="alert alert-danger">
+    <ul class="m-0 ps-3">
+      <?php foreach ($errors as $err): ?>
+        <li><?= h($err) ?></li>
+      <?php endforeach; ?>
+    </ul>
+  </div>
+<?php endif; ?>
 
 <?php if (empty($rows)): ?>
   <div class="alert alert-info">No hay ítems en Scrap actualmente.</div>
@@ -66,6 +201,7 @@ if ($listMode) {
           <th class="th-sort" data-sort="text">Pedimento <span class="sort-ind">▲▼</span></th>
           <th class="th-sort" data-sort="text">Ubicación <span class="sort-ind">▲▼</span></th>
           <th class="th-sort" data-sort="date">Fecha Scrap <span class="sort-ind">▲▼</span></th>
+          <th>Comentarios</th>
           <th>Acciones</th>
         </tr>
       </thead>
@@ -88,8 +224,22 @@ if ($listMode) {
           <td><?= h($r['Location']) ?></td>
           <td><?= h($r['UpdatedAt']) ?></td>
           <td>
+            <div style="max-width: 200px; max-height: 4.5em; overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;" title="<?= h($r['Comments']) ?>"><?= h($r['Comments']) ?></div>
+          </td>
+          <td>
+            <button class="btn btn-sm btn-success mb-1" title="Restaurar a Activos" 
+                    data-bs-toggle="modal" data-bs-target="#restoreModal" 
+                    data-id="<?= h($r['ID']) ?>">
+              <i class="fa fa-arrow-rotate-left"></i>
+            </button>
+            <button class="btn btn-sm btn-warning mb-1" title="Editar Comentarios" 
+                    data-bs-toggle="modal" data-bs-target="#editCommentModal" 
+                    data-id="<?= h($r['ID']) ?>" 
+                    data-comments="<?= h($r['Comments']) ?>">
+              <i class="fa fa-edit"></i>
+            </button>
             <a href="golden_history.php?id=<?= urlencode((string)$r['ID']) ?>"
-               class="btn btn-sm btn-info" title="Historial">
+               class="btn btn-sm btn-info mb-1" title="Historial">
               <i class="fa fa-clock-rotate-left"></i>
             </a>
           </td>
@@ -102,6 +252,61 @@ if ($listMode) {
   <div class="d-flex justify-content-between align-items-center mt-2">
     <small class="text-secondary">Búsqueda y paginación en el navegador.</small>
     <div class="dt-pager"></div>
+  </div>
+</div>
+
+<!-- Modal Editar Comentarios -->
+<div class="modal fade" id="editCommentModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark">
+      <form method="POST" action="golden_scrap.php">
+        <input type="hidden" name="action" value="edit_comment">
+        <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="edit_id" id="editCommentId" value="">
+        <div class="modal-header border-0">
+          <h5 class="modal-title">Editar Comentarios</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="editCommentText" class="form-label">Comentarios</label>
+            <textarea class="form-control" id="editCommentText" name="comments" rows="5"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Restaurar de Scrap -->
+<div class="modal fade" id="restoreModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark">
+      <form method="POST" action="golden_scrap.php">
+        <input type="hidden" name="action" value="restore">
+        <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+        <input type="hidden" name="restore_id" id="restoreId" value="">
+        <div class="modal-header border-0">
+          <h5 class="modal-title">Restaurar a Activos</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <p>¿Estás seguro que deseas regresar este ítem a la lista de activos?</p>
+          <div class="mb-3">
+            <label for="restoreReason" class="form-label">Motivo (opcional)</label>
+            <textarea class="form-control" id="restoreReason" name="reason" rows="2" placeholder="Ej. Reparado, Recuperado..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-success"><i class="fa fa-arrow-rotate-left me-2"></i>Restaurar</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 
@@ -121,6 +326,23 @@ if ($listMode) {
 </div>
 
 <script>
+const editCommentModal = document.getElementById('editCommentModal');
+if (editCommentModal) {
+  editCommentModal.addEventListener('show.bs.modal', ev => {
+    const btn = ev.relatedTarget;
+    document.getElementById('editCommentId').value = btn.getAttribute('data-id');
+    document.getElementById('editCommentText').value = btn.getAttribute('data-comments');
+  });
+}
+
+const restoreModal = document.getElementById('restoreModal');
+if (restoreModal) {
+  restoreModal.addEventListener('show.bs.modal', ev => {
+    const btn = ev.relatedTarget;
+    document.getElementById('restoreId').value = btn.getAttribute('data-id');
+  });
+}
+
 const imgModal = document.getElementById('imagePreviewModal');
 if (imgModal) {
   imgModal.addEventListener('show.bs.modal', ev => {

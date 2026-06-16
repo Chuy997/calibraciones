@@ -101,6 +101,14 @@ $rows = pdo()->query($sql)->fetchAll();
               <i class="fa fa-print text-white"></i> <span>Imprimir / PDF</span>
             </a>
           </li>
+          <li>
+            <hr class="dropdown-divider">
+          </li>
+          <li>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="assets_hw_download.php">
+              <i class="fa fa-file-image text-info"></i> <span>Descargar Lista (con Fotos ligeras)</span>
+            </a>
+          </li>
         </ul>
       </div>
       <select class="form-select dt-filter" data-col="9" style="max-width:220px;">
