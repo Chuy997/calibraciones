@@ -15,7 +15,7 @@ $success = null;
 
 /** Helpers */
 function is_valid_role(string $r): bool {
-  return in_array($r, ['admin','operator','ingenieria','golden_consulta'], true); // ajustado a tu esquema
+  return in_array($r, ['admin','operator','ingenieria','golden_consulta','aio'], true); // ajustado a tu esquema
 }
 function username_exists(PDO $pdo, string $u, ?int $ignoreId=null): bool {
   $sql = 'SELECT userID FROM users WHERE username = ?'.($ignoreId ? ' AND userID <> ?' : '');
@@ -141,6 +141,7 @@ $users = $pdo->query('SELECT userID, username, role FROM users ORDER BY userID D
             <option value="operator">operator (solo lectura)</option>
             <option value="ingenieria">ingenieria</option>
             <option value="golden_consulta">golden_consulta (solo lectura golden)</option>
+            <option value="aio">aio (solo acceso AIO)</option>
             <option value="admin">admin</option>
           </select>
         </div>
@@ -190,6 +191,7 @@ $users = $pdo->query('SELECT userID, username, role FROM users ORDER BY userID D
                       <option value="operator" <?= $u['role']==='operator'?'selected':''; ?>>operator</option>
                       <option value="ingenieria" <?= $u['role']==='ingenieria'?'selected':''; ?>>ingenieria</option>
                       <option value="golden_consulta" <?= $u['role']==='golden_consulta'?'selected':''; ?>>golden_consulta</option>
+                      <option value="aio" <?= $u['role']==='aio'?'selected':''; ?>>aio</option>
                       <option value="admin"    <?= $u['role']==='admin'?'selected':''; ?>>admin</option>
                     </select>
                 </td>

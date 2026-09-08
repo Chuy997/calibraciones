@@ -1,5 +1,5 @@
 <?php
-// /var/www/html/calibraciones/golden_audit.php
+// /var/www/html/calibraciones/aio_audit.php
 declare(strict_types=1);
 
 // CRITICAL: Increase upload limits for mobile camera photos
@@ -32,10 +32,10 @@ $pdo = pdo();
 // 1. CREATE DRAFT
 if (isset($_GET['action']) && $_GET['action'] === 'create_draft') {
     try {
-        $stmt = $pdo->prepare("INSERT INTO golden_audits (Auditor, Status, AuditDate) VALUES (?, 'Open', NOW())");
+        $stmt = $pdo->prepare("INSERT INTO aio_audits (Auditor, Status, AuditDate) VALUES (?, 'Open', NOW())");
         $stmt->execute([$currentUser]);
         $newId = $pdo->lastInsertId();
-        header("Location: golden_audit.php?action=edit&id=$newId");
+        header("Location: aio_audit.php?action=edit&id=$newId");
         exit;
     } catch (Throwable $e) {
         die("Error creating audit: " . $e->getMessage());
@@ -91,12 +91,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
         $stats = ['Total' => 0, 'Missing' => 0, 'Damaged' => 0];
 
         // Wipe old details for clean update
-        $pdo->prepare("DELETE FROM golden_audit_items WHERE AuditID = ?")->execute([$auditId]);
-        $stmtDetail = $pdo->prepare("INSERT INTO golden_audit_items (AuditID, GoldenID, PhysicalCheck, ConditionCheck, Notes) VALUES (?, ?, ?, ?, ?)");
+        $pdo->prepare("DELETE FROM aio_audit_items WHERE AuditID = ?")->execute([$auditId]);
+        $stmtDetail = $pdo->prepare("INSERT INTO aio_audit_items (AuditID, AioID, PhysicalCheck, ConditionCheck, Notes) VALUES (?, ?, ?, ?, ?)");
         
         // Update Inventory Tables
-        $updLoc = $pdo->prepare("UPDATE golden_items SET Location = ? WHERE ID = ?");
-        $updPic = $pdo->prepare("UPDATE golden_items SET Picture = ? WHERE ID = ?");
+        $updLoc = $pdo->prepare("UPDATE aio_items SET Location = ? WHERE ID = ?");
+        $updPic = $pdo->prepare("UPDATE aio_items SET Picture = ? WHERE ID = ?");
 
         foreach ($items as $gid => $data) {
             $stats['Total']++;
@@ -139,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                     $ext = strtolower(pathinfo($fName, PATHINFO_EXTENSION));
                     if(!$ext) $ext = 'jpg'; // Fallback
                     
-                    $destDir = __DIR__ . '/uploads/golden/' . $gid . '/';
+                    $destDir = __DIR__ . '/uploads/aio/' . $gid . '/';
                     if (!is_dir($destDir)) {
                         if (!mkdir($destDir, 0755, true)) $dbgMsg .= "  FAIL: mkdir $destDir\n";
                     }
@@ -147,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                     // Use standard naming convention
                     $finalName = 'audit_upd_' . time() . '.' . $ext;
                     if (move_uploaded_file($fTmp, $destDir . $finalName)) {
-                        $relPath = '/calibraciones/uploads/golden/' . $gid . '/' . $finalName;
+                        $relPath = '/calibraciones/uploads/aio/' . $gid . '/' . $finalName;
                         $updPic->execute([$relPath, $gid]);
                         $dbgMsg .= "  SUCCESS: Moved to $relPath\n";
                     } else {
@@ -165,7 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 
 
         // Update Header
-        $sqlHead = "UPDATE golden_audits SET TotalItems=?, TotalMissing=?, TotalDamaged=?, Comments=?, Status=? WHERE AuditID=?";
+        $sqlHead = "UPDATE aio_audits SET TotalItems=?, TotalMissing=?, TotalDamaged=?, Comments=?, Status=? WHERE AuditID=?";
         $pdo->prepare($sqlHead)->execute([$stats['Total'], $stats['Missing'], $stats['Damaged'], $comments, $status, $auditId]);
 
         // STRICT FINALIZATION CHECK
@@ -175,12 +175,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
             // Simpler: Check if any item marked Good/Damage lacks a valid picture.
             
             // 1. Fetch Audit Date
-            $auditDate = $pdo->query("SELECT AuditDate FROM golden_audits WHERE AuditID=$auditId")->fetchColumn();
+            $auditDate = $pdo->query("SELECT AuditDate FROM aio_audits WHERE AuditID=$auditId")->fetchColumn();
             
             // 2. Scan all active items
             $checkStmt = $pdo->query("SELECT i.ID, i.Picture, ai.ConditionCheck 
-                                      FROM golden_items i 
-                                      LEFT JOIN golden_audit_items ai ON i.ID = ai.GoldenID AND ai.AuditID = $auditId
+                                      FROM aio_items i 
+                                      LEFT JOIN aio_audit_items ai ON i.ID = ai.AioID AND ai.AuditID = $auditId
                                       WHERE i.Status='Activo'");
                                       
             $errors = [];
@@ -204,7 +204,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                 $pdo->rollBack(); // Revert everything
                 $errorStr = implode("<br>", array_slice($errors, 0, 5));
                 if(count($errors)>5) $errorStr .= "<br>... y " . (count($errors)-5) . " más.";
-                header("Location: golden_audit.php?action=edit&id=$auditId&msg=error_validation&details=".urlencode($errorStr));
+                header("Location: aio_audit.php?action=edit&id=$auditId&msg=error_validation&details=".urlencode($errorStr));
                 exit;
             }
         }
@@ -219,7 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
         }
 
         $msg = ($status === 'Closed') ? 'finalized' : 'saved';
-        header("Location: golden_audit.php?action=edit&id=$auditId&msg=$msg");
+        header("Location: aio_audit.php?action=edit&id=$auditId&msg=$msg");
         exit;
 
     } catch (Throwable $e) {
@@ -333,15 +333,15 @@ include __DIR__.'/partials/header.php';
 <!-- ================= LIST VIEW ================= -->
 <?php if ($action === 'list'): 
     try {
-        $audits = $pdo->query("SELECT * FROM golden_audits ORDER BY Status DESC, AuditDate DESC LIMIT 50")->fetchAll();
+        $audits = $pdo->query("SELECT * FROM aio_audits ORDER BY Status DESC, AuditDate DESC LIMIT 50")->fetchAll();
     } catch (Throwable $e) { $audits = []; echo "<div class='alert alert-danger'>Error DB: ".$e->getMessage()."</div>"; }
 ?>
     <div class="d-flex justify-content-between align-items-center mb-4 mt-3">
         <div>
-            <h1 class="h3 fw-bold text-dark">Auditorías Golden</h1>
+            <h1 class="h3 fw-bold text-dark">Auditorías AIO</h1>
             <p class="text-secondary mb-0">Historial de revisiones de inventario.</p>
         </div>
-        <a href="golden_audit.php?action=create_draft" class="btn btn-primary shadow-sm px-4">
+        <a href="aio_audit.php?action=create_draft" class="btn btn-primary shadow-sm px-4">
             <i class="fa fa-plus me-2"></i>Nueva Auditoría
         </a>
     </div>
@@ -395,11 +395,11 @@ include __DIR__.'/partials/header.php';
 
                         <div class="d-grid">
                             <?php if ($isOpen): ?>
-                                <a href="golden_audit.php?action=edit&id=<?= $row['AuditID'] ?>" class="btn btn-primary fw-bold">
+                                <a href="aio_audit.php?action=edit&id=<?= $row['AuditID'] ?>" class="btn btn-primary fw-bold">
                                     <i class="fa fa-arrow-right me-1"></i> Continuar
                                 </a>
                             <?php else: ?>
-                                <a href="golden_report_print.php?id=<?= $row['AuditID'] ?>" target="_blank" class="btn btn-outline-dark btn-sm">
+                                <a href="aio_report_print.php?id=<?= $row['AuditID'] ?>" target="_blank" class="btn btn-outline-dark btn-sm">
                                     <i class="fa fa-file-pdf me-1"></i> Ver Reporte
                                 </a>
                             <?php endif; ?>
@@ -410,23 +410,22 @@ include __DIR__.'/partials/header.php';
         <?php endforeach; endif; ?>
     </div>
 
-<!-- ================= EDIT VIEW ================= -->
 <?php elseif ($action === 'edit'): 
     $id = (int)($_GET['id'] ?? 0);
     try {
         // Fetch Audit Header
-        $auditRow = $pdo->query("SELECT * FROM golden_audits WHERE AuditID=$id")->fetch();
+        $auditRow = $pdo->query("SELECT * FROM aio_audits WHERE AuditID=$id")->fetch();
         if (!$auditRow) die("Referencia vacía.");
 
         // Fetch Inventory & Saved State
-        $inv = $pdo->query("SELECT ID, Description, Brand, Model, SerialNumber, Location, Picture FROM golden_items WHERE Status='Activo' ORDER BY Location ASC, ID ASC")->fetchAll();
-        $savedStmt = $pdo->prepare("SELECT * FROM golden_audit_items WHERE AuditID = ?");
+        $inv = $pdo->query("SELECT ID, Description, Brand, Model, SerialNumber, Location, Picture FROM aio_items WHERE Status='Activo' ORDER BY Location ASC, ID ASC")->fetchAll();
+        $savedStmt = $pdo->prepare("SELECT * FROM aio_audit_items WHERE AuditID = ?");
         $savedStmt->execute([$id]);
         $saved = [];
-        foreach($savedStmt as $s) $saved[$s['GoldenID']] = $s;
+        foreach($savedStmt as $s) $saved[$s['AioID']] = $s;
 
         // Locations Datalist
-        $locs = $pdo->query("SELECT DISTINCT Location FROM golden_items ORDER BY Location")->fetchAll(PDO::FETCH_COLUMN);
+        $locs = $pdo->query("SELECT DISTINCT Location FROM aio_items ORDER BY Location")->fetchAll(PDO::FETCH_COLUMN);
 
     } catch (Throwable $e) { die("Error Crítico de Carga: " . $e->getMessage()); }
 ?>
@@ -447,7 +446,7 @@ include __DIR__.'/partials/header.php';
                     <h5 class="mb-0 fw-bold d-none d-md-block">Revisión de Material</h5>
                 </div>
                 <div class="d-flex gap-2">
-                    <a href="golden_audit.php" class="btn btn-outline-light">Salir</a>
+                    <a href="aio_audit.php" class="btn btn-outline-light">Salir</a>
                     <button type="button" class="btn btn-info text-white fw-bold" onclick="cleanAndSubmit(false)"><i class="fa fa-save me-1"></i> <span class="d-none d-md-inline">Guardar</span></button>
                     <button type="button" class="btn btn-success fw-bold" data-bs-toggle="modal" data-bs-target="#finishModal"><i class="fa fa-check me-1"></i> <span class="d-none d-md-inline">Terminar</span></button>
                 </div>
@@ -538,7 +537,7 @@ include __DIR__.'/partials/header.php';
                                   <label class="btn btn-primary btn-sm position-absolute rounded-circle shadow btn-camera-mobile" style="bottom: -15px; right: 15px; width: 40px; height: 40px; padding: 0; display:flex; align-items:center; justify-content:center;">
                                       <i class="fa fa-camera text-white"></i>
                                       <!-- Keeping name 'picture_mobile' as unified input name -->
-                                      <input type="file" class="d-none start-cam" data-gid="<?= $gid ?>" accept="image/*" capture="environment" name="items[<?= $gid ?>][picture_mobile]">
+                                      <input type="file" class="d-none start-cam" data-gid="<?= $gid ?>" accept="image/*" name="items[<?= $gid ?>][picture_mobile]">
                                   </label>
 
                                   <!-- New Pic Badge -->
@@ -697,14 +696,7 @@ window.addEventListener('load', () => {
                     
                     // Replace file input with compressed version
                     const dt = new DataTransfer();
-                    const _now = new Date();
-                    const _ts = _now.getFullYear().toString()
-                        + String(_now.getMonth()+1).padStart(2,'0')
-                        + String(_now.getDate()).padStart(2,'0')
-                        + '_' + String(_now.getHours()).padStart(2,'0')
-                        + String(_now.getMinutes()).padStart(2,'0')
-                        + String(_now.getSeconds()).padStart(2,'0');
-                    const newFile = new File([blob], 'photo_' + _ts + '.jpg', { type: 'image/jpeg' });
+                    const newFile = new File([blob], 'photo_' + Date.now() + '.jpg', { type: 'image/jpeg' });
                     dt.items.add(newFile);
                     e.target.files = dt.files;
                     console.log(`✓ File input replaced with compressed version for ${gid}`);
@@ -749,11 +741,11 @@ window.addEventListener('load', () => {
     });
     
     // NEW: Restore Scroll Position if saved
-    const savedScroll = sessionStorage.getItem('golden_audit_scroll');
+    const savedScroll = sessionStorage.getItem('aio_audit_scroll');
     if (savedScroll) {
         setTimeout(() => {
             window.scrollTo(0, parseInt(savedScroll));
-            sessionStorage.removeItem('golden_audit_scroll'); // Clear
+            sessionStorage.removeItem('aio_audit_scroll'); // Clear
         }, 100); // Small delay to ensure layout is ready
     }
 
@@ -811,31 +803,7 @@ function compressImage(file, quality, maxWidth) {
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
-
-                // --- WATERMARK: fecha y hora ---
-                (function() {
-                    const wNow = new Date();
-                    const wStr = wNow.getFullYear() + '-'
-                        + String(wNow.getMonth()+1).padStart(2,'0') + '-'
-                        + String(wNow.getDate()).padStart(2,'0') + '  '
-                        + String(wNow.getHours()).padStart(2,'0') + ':'
-                        + String(wNow.getMinutes()).padStart(2,'0') + ':'
-                        + String(wNow.getSeconds()).padStart(2,'0');
-                    const wSize = Math.max(18, Math.round(width * 0.032));
-                    ctx.font = `bold ${wSize}px monospace`;
-                    const wPad = Math.round(wSize * 0.5);
-                    const wTextW = ctx.measureText(wStr).width;
-                    const wX = width  - wTextW - wPad * 2;
-                    const wY = height - wPad * 2;
-                    // Fondo semitransparente
-                    ctx.fillStyle = 'rgba(0,0,0,0.52)';
-                    ctx.fillRect(wX - wPad, wY - wSize - wPad * 0.5, wTextW + wPad * 2, wSize + wPad * 1.5);
-                    // Texto blanco
-                    ctx.fillStyle = 'rgba(255,255,255,0.96)';
-                    ctx.fillText(wStr, wX, wY);
-                })();
-                // --------------------------------
-
+                
                 // Return BLOB (not DataURL)
                 canvas.toBlob(blob => {
                     resolve(blob);
@@ -871,7 +839,7 @@ function cleanAndSubmit(setClosed = false) {
     }
 
     // NEW: Save Scroll Position
-    sessionStorage.setItem('golden_audit_scroll', window.scrollY);
+    sessionStorage.setItem('aio_audit_scroll', window.scrollY);
 
     // 4. Submit
     form.submit();

@@ -86,17 +86,28 @@ $rows = pdo()->query($sql)->fetchAll();
     <div class="ms-auto d-flex gap-2">
       <div class="dropdown">
         <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-          <i class="fa fa-download"></i> Exportar
+          <i class="fa fa-download me-1"></i> Exportar
         </button>
-        <ul class="dropdown-menu dropdown-menu-dark p-2">
+        <ul class="dropdown-menu dropdown-menu-dark p-2" style="min-width: 250px;">
           <li>
             <a class="dropdown-item d-flex align-items-center gap-2" href="golden_export.php">
               <i class="fa fa-file-excel text-success"></i> <span>Excel (CSV)</span>
             </a>
           </li>
+          <li><hr class="dropdown-divider my-1"></li>
           <li>
             <a class="dropdown-item d-flex align-items-center gap-2" href="golden_inventory_print.php" target="_blank">
-              <i class="fa fa-print text-white"></i> <span>Imprimir / PDF</span>
+              <i class="fa fa-file-pdf text-danger"></i> <span>PDF Ligero (&lt; 1 MB, para correo)</span>
+            </a>
+          </li>
+          <li>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="golden_inventory_print.php?no_img=1" target="_blank">
+              <i class="fa fa-file-pdf text-warning"></i> <span>PDF Sin fotos (&lt; 500 KB)</span>
+            </a>
+          </li>
+          <li>
+            <a class="dropdown-item d-flex align-items-center gap-2" href="golden_inventory_print.php?full=1" target="_blank">
+              <i class="fa fa-print text-secondary"></i> <span>PDF Alta resolución (Original)</span>
             </a>
           </li>
         </ul>
@@ -292,7 +303,7 @@ $rows = pdo()->query($sql)->fetchAll();
   </div>
 
   <div class="d-flex justify-content-between align-items-center mt-2">
-    <small class="text-secondary">Búsqueda, orden y paginación en el navegador.</small>
+    <small class="text-secondary">Búsqueda, orden y paginación en el navegador. <span id="dt-count-info" class="fw-bold text-white ms-1"></span></small>
     <div class="dt-pager"></div>
   </div>
 </div>
@@ -425,6 +436,16 @@ if (imgModal) {
     visiCards.forEach((c, i) => {
       if (i >= (page - 1) * per && i < page * per) c.style.display = '';
     });
+
+    // Contador de resultados filtrados
+    const countEl = document.getElementById('dt-count-info');
+    if (countEl) {
+      const total = Array.from(tbody.rows).length;
+      const visible = visiRows.length;
+      countEl.textContent = visible < total
+        ? `— ${visible} ítem(s) encontrado(s)`
+        : `— ${total} ítem(s) en total`;
+    }
 
     pagerEl.innerHTML = '';
     for (let p=1; p<=pages; p++){

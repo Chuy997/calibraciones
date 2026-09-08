@@ -8,8 +8,8 @@ require_auth('admin');
 function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
 $rows = pdo()->query("
-  SELECT ID, Description, Brand, Model, SerialNumber, CalDate, DueDate, Status, Comments,
-         ReasonForRemoval, DateRemoved, Picture
+  SELECT ID, Description, Brand, Model, SerialNumber, Comments,
+         ReasonForRemoval, RemovalComment, DateRemoved, Picture, PdfPath
   FROM instrumentsoutofuse
   ORDER BY DateRemoved DESC, ID
 ")->fetchAll();
@@ -43,7 +43,7 @@ $rows = pdo()->query("
       <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">Columnas</button>
       <div class="dropdown-menu dropdown-menu-dark p-2 colvis-menu">
         <?php
-        $cols = ['ID','Descripción','Marca','Modelo','Serie','Cal.Date','Due.Date','Estado','Comentarios','Razón','Removido','Foto','Acciones'];
+        $cols = ['ID','Descripción','Marca','Modelo','Serie','Comentarios','Razón','Removido','Certificado','Foto','Acciones'];
         foreach ($cols as $i=>$c): ?>
           <label class="dropdown-item d-flex align-items-center gap-2">
             <input class="form-check-input me-2" type="checkbox" data-col="<?= $i ?>" checked>
@@ -64,12 +64,10 @@ $rows = pdo()->query("
             <th class="th-sort" data-sort="text">Marca <span class="sort-ind">▲▼</span></th>
             <th class="th-sort" data-sort="text">Modelo <span class="sort-ind">▲▼</span></th>
             <th class="th-sort" data-sort="text">Serie <span class="sort-ind">▲▼</span></th>
-            <th class="th-sort" data-sort="date">Cal.Date <span class="sort-ind">▲▼</span></th>
-            <th class="th-sort" data-sort="date">Due.Date <span class="sort-ind">▲▼</span></th>
-            <th class="th-sort" data-sort="text">Estado <span class="sort-ind">▲▼</span></th>
             <th>Comentarios</th>
             <th class="th-sort" data-sort="text">Razón <span class="sort-ind">▲▼</span></th>
             <th class="th-sort" data-sort="date">Removido <span class="sort-ind">▲▼</span></th>
+            <th>Certificado</th>
             <th>Foto</th>
             <th>Acciones</th>
           </tr>
@@ -82,12 +80,14 @@ $rows = pdo()->query("
             <td><?= h($r['Brand']) ?></td>
             <td><?= h($r['Model']) ?></td>
             <td><?= h($r['SerialNumber']) ?></td>
-            <td><?= h($r['CalDate']) ?></td>
-            <td><?= h($r['DueDate']) ?></td>
-            <td><?= h($r['Status']) ?></td>
-            <td><?= h($r['Comments']) ?></td>
+            <td><?= h($r['RemovalComment']) ?></td>
             <td><?= h($r['ReasonForRemoval']) ?></td>
             <td><?= h($r['DateRemoved']) ?></td>
+            <td>
+              <?php if (!empty($r['PdfPath'])): ?>
+                <a href="<?= h($r['PdfPath']) ?>" target="_blank" class="btn btn-sm btn-outline-primary" title="Ver certificado"><i class="fa fa-file-pdf me-1"></i>Ver PDF</a>
+              <?php else: ?>—<?php endif; ?>
+            </td>
             <td>
               <?php if (!empty($r['Picture'])): ?>
                 <img src="<?= h($r['Picture']) ?>" class="img-thumb" alt="foto" data-bs-toggle="modal" data-bs-target="#imagePreviewModal" data-src="<?= h($r['Picture']) ?>">

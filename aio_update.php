@@ -1,15 +1,15 @@
 <?php
-// /var/www/html/calibraciones/golden_update.php
+// /var/www/html/calibraciones/aio_update.php
 declare(strict_types=1);
 
 require_once __DIR__ . '/config.php';
-require_auth(['admin','ingenieria']); // solo admin
+require_auth(['admin','ingenieria','aio']); // solo admin
 
 function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
 $pdo = pdo();
 
-// LÍMITES Y VALIDACIONES DE ARCHIVOS (igual estilo que en golden_add)
+// LÍMITES Y VALIDACIONES DE ARCHIVOS (igual estilo que en aio_add)
 const MAX_IMG_BYTES = 8 * 1024 * 1024;   // 8MB
 const MAX_PDF_BYTES = 20 * 1024 * 1024;  // 20MB
 $ALLOWED_IMG_EXT = ['jpg','jpeg','png','webp','heic','heif'];
@@ -41,15 +41,15 @@ $st = $pdo->prepare("
     ID, Description, Brand, Model, SerialNumber,
     Pedimento,
     Location, Department, Owner, Status,
-    Picture, Document, Comments, CreatedAt, UpdatedAt
-  FROM golden_items
+    Picture, Document, Comments, Qty, HW_NRE, HW_Asset, ZL_Asset, AI_Asset, ReceivedDate, XY_Asset, Years, Come_form, CreatedAt, UpdatedAt
+  FROM aio_items
   WHERE ID = ?
 ");
 $st->execute([$id]);
 $item = $st->fetch();
 if (!$item) {
   http_response_code(404);
-  exit('Material Golden no encontrado.');
+  exit('Material AIO no encontrado.');
 }
 
 $errors = [];
@@ -65,6 +65,15 @@ $values = [
   'owner'        => (string)($item['Owner']        ?? ''),
   'status'       => (string)($item['Status']       ?? 'Activo'),
   'comments'     => (string)($item['Comments']     ?? ''),
+  'qty'          => (string)($item['Qty']          ?? '1'),
+  'hw_nre'       => (string)($item['HW_NRE']       ?? ''),
+  'hw_asset'     => (string)($item['HW_Asset']     ?? ''),
+  'zl_asset'     => (string)($item['ZL_Asset']     ?? ''),
+  'ai_asset'     => (string)($item['AI_Asset']     ?? ''),
+  'received_date'=> (string)($item['ReceivedDate'] ?? ''),
+  'xy_asset'     => (string)($item['XY_Asset']     ?? ''),
+  'years'        => (string)($item['Years']        ?? ''),
+  'come_form'    => (string)($item['Come_form']    ?? ''),
 ];
 
 $currPicture  = (string)($item['Picture']  ?? '');
@@ -150,7 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 
   // Recoger (ID no editable)
-  foreach (['description','brand','model','serialNumber','pedimento','location','department','owner','comments'] as $k) {
+  foreach (['description','brand','model','serialNumber','pedimento','location','department','owner','comments','qty','hw_nre','hw_asset','zl_asset','ai_asset','received_date'] as $k) {
     $values[$k] = trim((string)($_POST[$k] ?? ''));
   }
   // Status no se edita aquí; si lo envían por error, se ignora
@@ -174,7 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $pdo->beginTransaction();
 
       // Directorio por ID
-      $destDirAbs = __DIR__ . '/uploads/golden/' . $id . '/';
+      $destDirAbs = __DIR__ . '/uploads/aio/' . $id . '/';
 
       // Subidas opcionales
       $newPic  = handleUpload('picture',  $destDirAbs, 'img'); // null si no hay
@@ -185,7 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       // UPDATE principal (incluye Pedimento)
       $upd = $pdo->prepare("
-        UPDATE golden_items
+        UPDATE aio_items
            SET Description  = :Description,
                Brand        = :Brand,
                Model        = :Model,
@@ -197,6 +206,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                Comments     = :Comments,
                Picture      = :Picture,
                Document     = :Document,
+               Qty          = :Qty,
+               HW_NRE       = :HW_NRE,
+               HW_Asset     = :HW_Asset,
+               ZL_Asset     = :ZL_Asset,
+               AI_Asset     = :AI_Asset,
+               ReceivedDate = :ReceivedDate,
+               XY_Asset     = :XY_Asset,
+               Years        = :Years,
+               Come_form    = :Come_form,
                UpdatedAt    = NOW()
          WHERE ID = :ID
       ");
@@ -212,18 +230,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ':Comments'     => $values['comments'] ?: null,
         ':Picture'      => $currPicture ?: null,
         ':Document'     => $currDocument ?: null,
+        ':Qty'          => $values['qty'] ?: 1,
+        ':HW_NRE'       => $values['hw_nre'] ?: null,
+        ':HW_Asset'     => $values['hw_asset'] ?: null,
+        ':ZL_Asset'     => $values['zl_asset'] ?: null,
+        ':AI_Asset'     => $values['ai_asset'] ?: null,
+        ':ReceivedDate' => $values['received_date'] ?: null,
+        ':XY_Asset'     => $values['xy_asset'] ?: null,
+        ':Years'        => $values['years'] ?: null,
+        ':Come_form'    => $values['come_form'] ?: null,
         ':ID'           => $id,
       ]);
 
       // Historial de actualización (auditoría) — incluye Pedimento
       $hst = $pdo->prepare("
-        INSERT INTO golden_history
-          (GoldenID, Action, Description, Brand, Model, SerialNumber, Pedimento, Location, Department, Owner, Status, Picture, Document, Comments, CreatedAt)
+        INSERT INTO aio_history
+          (AioID, Action, Description, Brand, Model, SerialNumber, Pedimento, Location, Department, Owner, Status, Picture, Document, Comments, Qty, HW_NRE, HW_Asset, ZL_Asset, AI_Asset, ReceivedDate, XY_Asset, Years, Come_form, CreatedAt)
         VALUES
-          (:GoldenID,'update',:Description,:Brand,:Model,:SerialNumber,:Pedimento,:Location,:Department,:Owner,:Status,:Picture,:Document,:Comments,NOW())
+          (:AioID,'update',:Description,:Brand,:Model,:SerialNumber,:Pedimento,:Location,:Department,:Owner,:Status,:Picture,:Document,:Comments,:Qty,:HW_NRE,:HW_Asset,:ZL_Asset,:AI_Asset,:ReceivedDate,:XY_Asset,:Years,:Come_form,NOW())
       ");
       $hst->execute([
-        ':GoldenID'     => $id,
+        ':AioID'     => $id,
         ':Description'  => $values['description'],
         ':Brand'        => $values['brand'] ?: null,
         ':Model'        => $values['model'] ?: null,
@@ -236,10 +263,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ':Picture'      => $currPicture ?: null,
         ':Document'     => $currDocument ?: null,
         ':Comments'     => $values['comments'] ?: null,
+        ':Qty'          => $values['qty'] ?: 1,
+        ':HW_NRE'       => $values['hw_nre'] ?: null,
+        ':HW_Asset'     => $values['hw_asset'] ?: null,
+        ':ZL_Asset'     => $values['zl_asset'] ?: null,
+        ':AI_Asset'     => $values['ai_asset'] ?: null,
+        ':ReceivedDate' => $values['received_date'] ?: null,
+        ':XY_Asset'     => $values['xy_asset'] ?: null,
+        ':Years'        => $values['years'] ?: null,
+        ':Come_form'    => $values['come_form'] ?: null,
       ]);
 
       $pdo->commit();
-      header('Location: golden_admin.php');
+      header('Location: aio_admin.php');
       exit;
     } catch (Throwable $e) {
       if ($pdo->inTransaction()) $pdo->rollBack();
@@ -254,7 +290,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <div class="col-12 col-lg-8 col-xl-7">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h1 class="h4 m-0 fw-bold">✏️ Editar Material</h1>
-      <a href="golden_admin.php" class="btn btn-outline-secondary">
+      <a href="aio_admin.php" class="btn btn-outline-secondary">
         <i class="fa fa-arrow-left me-1"></i> Volver
       </a>
     </div>
@@ -271,7 +307,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
     <?php endif; ?>
 
-    <form method="POST" action="golden_update.php?id=<?= h($id) ?>" enctype="multipart/form-data" class="needs-validation" novalidate>
+    <form method="POST" action="aio_update.php?id=<?= h($id) ?>" enctype="multipart/form-data" class="needs-validation" novalidate>
       <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
       <input type="hidden" name="id" value="<?= h($id) ?>">
 
@@ -306,6 +342,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <input type="text" id="pedimento" name="pedimento" class="form-control" value="<?= h($values['pedimento']) ?>" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
         </div>
 
+        <div class="col-sm-6">
+          <label for="qty" class="form-label">Cantidad (Qty)</label>
+          <input type="number" id="qty" name="qty" class="form-control" value="<?= h($values['qty']) ?>" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
+        </div>
+
+        <div class="col-sm-3">
+          <label for="hw_nre" class="form-label">HW NRE no.</label>
+          <input type="text" id="hw_nre" name="hw_nre" class="form-control" value="<?= h($values['hw_nre']) ?>" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
+        </div>
+        <div class="col-sm-3">
+          <label for="hw_asset" class="form-label">HW Asset</label>
+          <input type="text" id="hw_asset" name="hw_asset" class="form-control" value="<?= h($values['hw_asset']) ?>" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
+        </div>
+        <div class="col-sm-3">
+          <label for="zl_asset" class="form-label">ZL Asset</label>
+          <input type="text" id="zl_asset" name="zl_asset" class="form-control" value="<?= h($values['zl_asset']) ?>" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
+        </div>
+        <div class="col-sm-3">
+          <label for="ai_asset" class="form-label">AI Asset</label>
+          <input type="text" class="form-control" id="ai_asset" name="ai_asset" value="<?= h($values['ai_asset']) ?>">
+        </div>
+        <div class="col-sm-3">
+          <label for="xy_asset" class="form-label">XY Asset</label>
+          <input type="text" class="form-control" id="xy_asset" name="xy_asset" value="<?= h($values['xy_asset']) ?>">
+        </div>
+
+        <div class="col-sm-4">
+          <label for="received_date" class="form-label">Fecha de Recepción</label>
+          <input type="text" class="form-control" id="received_date" name="received_date" value="<?= h($values['received_date']) ?>" placeholder="Ej. 2023-01-06">
+        </div>
+        <div class="col-sm-4">
+          <label for="years" class="form-label">Years</label>
+          <input type="text" class="form-control" id="years" name="years" value="<?= h($values['years']) ?>">
+        </div>
+        <div class="col-sm-4">
+          <label for="come_form" class="form-label">Come form</label>
+          <input type="text" class="form-control" id="come_form" name="come_form" value="<?= h($values['come_form']) ?>">
+        </div>
+
         <div class="col-md-6">
           <label for="location" class="form-label">Ubicación *</label>
           <input type="text" id="location" name="location" class="form-control" value="<?= h($values['location']) ?>" required <?= $item['Status']==='Scrap'?'disabled':'' ?>>
@@ -324,7 +399,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <label class="form-label">Estado</label>
           <input type="text" class="form-control" value="<?= h($values['status']) ?>" disabled>
           <div class="form-text">
-            Para dar de baja, usa <a href="golden_scrap.php?id=<?= urlencode($id) ?>">Enviar a Scrap</a>.
+            Para dar de baja, usa <a href="aio_scrap.php?id=<?= urlencode($id) ?>">Enviar a Scrap</a>.
           </div>
         </div>
 
@@ -343,8 +418,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               </a>
             <?php endif; ?>
           </label>
-          <!-- capture="environment" opens rear camera directly on mobile -->
-          <input type="file" id="picture" name="picture" accept="image/*" capture="environment" class="form-control form-control-lg" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
+          <!-- Removed capture="environment" to allow gallery selection -->
+          <input type="file" id="picture" name="picture" accept="image/*" class="form-control form-control-lg" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
           <div class="form-text text-muted small">
              <i class="fa fa-info-circle"></i> Se comprimirá automáticamente si es muy grande.
           </div>
@@ -372,7 +447,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
 
       <div class="mt-4 d-flex gap-2">
-        <a href="golden_admin.php" class="btn btn-outline-secondary btn-lg flex-fill">Cancelar</a>
+        <a href="aio_admin.php" class="btn btn-outline-secondary btn-lg flex-fill">Cancelar</a>
         <button type="submit" class="btn btn-primary btn-lg flex-fill" <?= $item['Status']==='Scrap'?'disabled':'' ?>>
           <i class="fa fa-save me-2"></i> Guardar
         </button>
@@ -425,14 +500,7 @@ if (pictureInput) {
             const compressedBlob = await compressImage(file);
             // Replace file in input
             const dt = new DataTransfer();
-            const _nowU = new Date();
-            const _tsU = _nowU.getFullYear().toString()
-                + String(_nowU.getMonth()+1).padStart(2,'0')
-                + String(_nowU.getDate()).padStart(2,'0')
-                + '_' + String(_nowU.getHours()).padStart(2,'0')
-                + String(_nowU.getMinutes()).padStart(2,'0')
-                + String(_nowU.getSeconds()).padStart(2,'0');
-            const newFile = new File([compressedBlob], file.name.replace(/\.[^/.]+$/, "") + '_' + _tsU + ".jpg", { type: "image/jpeg" });
+            const newFile = new File([compressedBlob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", { type: "image/jpeg" });
             dt.items.add(newFile);
             pictureInput.files = dt.files;
             
@@ -476,31 +544,7 @@ function compressImage(file) {
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
-
-                // --- WATERMARK: fecha y hora ---
-                (function() {
-                    const wNow = new Date();
-                    const wStr = wNow.getFullYear() + '-'
-                        + String(wNow.getMonth()+1).padStart(2,'0') + '-'
-                        + String(wNow.getDate()).padStart(2,'0') + '  '
-                        + String(wNow.getHours()).padStart(2,'0') + ':'
-                        + String(wNow.getMinutes()).padStart(2,'0') + ':'
-                        + String(wNow.getSeconds()).padStart(2,'0');
-                    const wSize = Math.max(18, Math.round(width * 0.032));
-                    ctx.font = `bold ${wSize}px monospace`;
-                    const wPad = Math.round(wSize * 0.5);
-                    const wTextW = ctx.measureText(wStr).width;
-                    const wX = width  - wTextW - wPad * 2;
-                    const wY = height - wPad * 2;
-                    // Fondo semitransparente
-                    ctx.fillStyle = 'rgba(0,0,0,0.52)';
-                    ctx.fillRect(wX - wPad, wY - wSize - wPad * 0.5, wTextW + wPad * 2, wSize + wPad * 1.5);
-                    // Texto blanco
-                    ctx.fillStyle = 'rgba(255,255,255,0.96)';
-                    ctx.fillText(wStr, wX, wY);
-                })();
-                // --------------------------------
-
+                
                 canvas.toBlob(blob => {
                     resolve(blob);
                 }, 'image/jpeg', 0.8); // 80% quality JPG

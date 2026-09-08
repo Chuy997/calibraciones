@@ -28,6 +28,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Redirección por rol
                 if ($user['role'] === 'golden_consulta') {
                     header('Location: golden_admin.php');
+                } elseif ($user['role'] === 'aio') {
+                    header('Location: aio_admin.php');
                 } else {
                     header('Location: index.php'); // o a consulta.php si luego reactivamos esa vista
                 }

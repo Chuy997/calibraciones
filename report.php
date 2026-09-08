@@ -64,9 +64,12 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
 
 // --- Datos para gráficas y tabla ---
 $pie_labels = []; $pie_data = []; $pie_colors = [];
+// La gráfica usa: 'en proceso' si el Status está en BD como tal;
+// de lo contrario calcula el estado desde las fechas
 $sql1 = "
   SELECT status_calculado, COUNT(*) AS cnt FROM (
     SELECT CASE
+      WHEN Status = 'en proceso de calibracion' THEN 'En proceso de calibracion'
       WHEN CURRENT_DATE() > DueDate THEN 'Vencido'
       WHEN DueDate BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) THEN 'Próxima calibración'
       ELSE 'Calibrado'
@@ -79,14 +82,15 @@ foreach ($pdo->query($sql1) as $r) {
   $lbl = $r['status_calculado'];
   $pie_labels[] = $lbl;
   $pie_data[]   = (int)$r['cnt'];
-  // Colores modernos y suaves (Pastel/Chart.js style)
-  if ($lbl === 'Vencido') $pie_colors[] = '#ff6384'; // Rojo suave
-  elseif ($lbl === 'Próxima calibración') $pie_colors[] = '#ffcd56'; // Amarillo suave
-  else $pie_colors[] = '#36a2eb'; // Azul suave (Calibrado)
+  if ($lbl === 'Vencido')                       $pie_colors[] = '#ff6384'; // Rojo
+  elseif ($lbl === 'Próxima calibración')       $pie_colors[] = '#ffcd56'; // Amarillo
+  elseif ($lbl === 'En proceso de calibracion') $pie_colors[] = '#a855f7'; // Morado
+  else                                          $pie_colors[] = '#36a2eb'; // Azul (Calibrado)
 }
 
 $rows2 = $pdo->query("
   SELECT ID, Description, Brand, Model, SerialNumber, CalDate, DueDate,
+    Status AS status_bd,
     CASE
       WHEN CURRENT_DATE() > DueDate THEN 'Vencido'
       WHEN DueDate BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) THEN 'Próxima calibración'
@@ -111,12 +115,14 @@ foreach ($pdo->query("
 $pending_data = array_map(fn($m)=>$counts[$m]??0, $pending_labels);
 
 // KPIs de resumen
+// Los instrumentos 'en proceso de calibracion' NO se cuentan en vencidos/proximos/calibrados
 $kpi = $pdo->query("
     SELECT
         COUNT(*) AS total,
-        SUM(CASE WHEN CURRENT_DATE() > DueDate THEN 1 ELSE 0 END) AS vencidos,
-        SUM(CASE WHEN DueDate BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS proximos,
-        SUM(CASE WHEN CURRENT_DATE() <= DueDate AND NOT (DueDate BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY)) THEN 1 ELSE 0 END) AS calibrados
+        SUM(CASE WHEN Status != 'en proceso de calibracion' AND CURRENT_DATE() > DueDate THEN 1 ELSE 0 END) AS vencidos,
+        SUM(CASE WHEN Status != 'en proceso de calibracion' AND DueDate BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS proximos,
+        SUM(CASE WHEN Status != 'en proceso de calibracion' AND CURRENT_DATE() <= DueDate AND NOT (DueDate BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY)) THEN 1 ELSE 0 END) AS calibrados,
+        SUM(CASE WHEN Status = 'en proceso de calibracion' THEN 1 ELSE 0 END) AS en_proceso
     FROM instruments
 ")->fetch();
 ?>
@@ -199,6 +205,12 @@ $kpi = $pdo->query("
       <div class="kpi-label">Vencidos</div>
     </div>
   </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-number" style="color:#a855f7"><?= (int)($kpi['en_proceso'] ?? 0) ?></div>
+      <div class="kpi-label">En proceso de cal.</div>
+    </div>
+  </div>
 </div>
 
 <div class="row g-3 mb-3">
@@ -254,11 +266,11 @@ $kpi = $pdo->query("
     </div>
 
     <div class="ms-auto d-flex gap-2">
-      <select class="form-select dt-filter" data-col="7" style="max-width:220px;">
-        <option value="">Estado: todos</option>
-        <option>Calibrado</option>
-        <option>Próxima calibración</option>
-        <option>Vencido</option>
+      <select class="form-select dt-filter" data-col="7" style="max-width:260px;">
+        <option value="">Estado BD: todos</option>
+        <option>calibrado</option>
+        <option>en proceso de calibracion</option>
+        <option>fuera de calibracion</option>
       </select>
     </div>
   </div>
@@ -277,12 +289,33 @@ $kpi = $pdo->query("
             <th class="th-sort" data-sort="date">Due.Date <span class="sort-ind">▲▼</span></th>
             <th class="th-sort" data-sort="text">Estado <span class="sort-ind">▲▼</span></th>
             <th class="th-sort" data-sort="num">Días <span class="sort-ind">▲▼</span></th>
+            <th>Cambiar Estado</th>
           </tr>
         </thead>
         <tbody>
           <?php foreach ($rows2 as $r2):
-            $estado = (string)$r2['status_calculado'];
-            $badge = $estado==='Vencido' ? 'badge-ven' : ($estado==='Próxima calibración' ? 'badge-prox' : 'badge-cal');
+            $statusBd2   = (string)($r2['status_bd'] ?? '');
+            $statusCal2  = (string)($r2['status_calculado'] ?? '');
+            // Lógica híbrida: solo 'en proceso' usa el status de la BD;
+            // los demás se calculan automáticamente por fecha
+            if ($statusBd2 === 'en proceso de calibracion') {
+              $displayLabel2 = 'En proceso de cal.';
+              $displayVal2   = 'en proceso de calibracion';
+              $displayCls2   = 'badge-proc';
+              $displayIcon2  = 'fa-rotate';
+            } else {
+              // Estado automático por fechas
+              $autoMap2 = [
+                'Vencido'             => ['cls'=>'badge-ven',  'icon'=>'fa-circle-xmark'],
+                'Próxima calibración' => ['cls'=>'badge-prox', 'icon'=>'fa-clock'],
+                'Calibrado'           => ['cls'=>'badge-cal',  'icon'=>'fa-circle-check'],
+              ];
+              $ai2 = $autoMap2[$statusCal2] ?? ['cls'=>'badge-cal', 'icon'=>'fa-circle-question'];
+              $displayLabel2 = $statusCal2;
+              $displayVal2   = $statusCal2;
+              $displayCls2   = $ai2['cls'];
+              $displayIcon2  = $ai2['icon'];
+            }
           ?>
           <tr>
             <td><?= h($r2['ID']) ?></td>
@@ -292,8 +325,43 @@ $kpi = $pdo->query("
             <td><?= h($r2['SerialNumber']) ?></td>
             <td><?= h($r2['CalDate']) ?></td>
             <td><?= h($r2['DueDate']) ?></td>
-            <td><span class="badge badge-state <?= $badge ?>"><?= h($estado) ?></span></td>
+            <td>
+              <span class="badge badge-state <?= $displayCls2 ?>">
+                <i class="fa <?= $displayIcon2 ?> me-1"></i><?= h($displayLabel2) ?>
+              </span>
+            </td>
             <td><?= h((string)$r2['days_left']) ?></td>
+            <td>
+              <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle status-btn"
+                        type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  <i class="fa fa-sliders"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-dark shadow status-menu"
+                    data-id="<?= h((string)$r2['ID']) ?>"
+                    data-csrf="<?= h(csrf_token()) ?>">
+                  <li><h6 class="dropdown-header">Cambiar a:</h6></li>
+                  <li>
+                    <button class="dropdown-item d-flex align-items-center gap-2 status-option"
+                            data-val="calibrado">
+                      <i class="fa fa-circle-check text-success"></i>Calibrado
+                    </button>
+                  </li>
+                  <li>
+                    <button class="dropdown-item d-flex align-items-center gap-2 status-option"
+                            data-val="en proceso de calibracion">
+                      <i class="fa fa-rotate text-warning"></i>En proceso de calibración
+                    </button>
+                  </li>
+                  <li>
+                    <button class="dropdown-item d-flex align-items-center gap-2 status-option"
+                            data-val="fuera de calibracion">
+                      <i class="fa fa-circle-xmark text-danger"></i>Fuera de calibración
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </td>
           </tr>
           <?php endforeach; ?>
         </tbody>
@@ -354,6 +422,87 @@ new Chart(document.getElementById('barChart'), {
     plugins:{ legend:{ labels:{ color:'#e0e0e0' } } }
   }
 });
+</script>
+
+<style>
+/* Badge de En proceso */
+.badge-proc {
+  background: linear-gradient(135deg, #6f42c1 0%, #a855f7 100%);
+  color: #fff;
+}
+/* Animación fadeIn para toasts */
+@keyframes fadeInUp {
+  from { opacity:0; transform:translateY(10px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+</style>
+
+<script>
+// ===== CAMBIO DE STATUS VÍA AJAX EN REPORT =====
+const REPORT_STATUS_LABELS = {
+  'calibrado':                 { label: 'calibrado',               cls: 'badge-cal',  icon: 'fa-circle-check' },
+  'fuera de calibracion':      { label: 'fuera de calibracion',    cls: 'badge-ven',  icon: 'fa-circle-xmark' },
+  'en proceso de calibracion': { label: 'en proceso de calibracion', cls: 'badge-proc', icon: 'fa-rotate' },
+};
+
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.status-option');
+  if (!btn) return;
+
+  const menu   = btn.closest('.status-menu');
+  const row    = btn.closest('tr');
+  const id     = menu?.dataset.id;
+  const csrf   = menu?.dataset.csrf;
+  const status = btn.dataset.val;
+
+  if (!id || !status) return;
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa fa-spinner fa-spin me-2"></i>Guardando…';
+
+  try {
+    const body = new URLSearchParams({ id, status, csrf });
+    const res  = await fetch('update_status.php', { method: 'POST', body });
+    const data = await res.json();
+
+    if (data.ok) {
+      const info = REPORT_STATUS_LABELS[status] ?? { label: status, cls: 'badge-cal', icon: 'fa-circle-question' };
+      const badgeEl = row?.querySelector('.badge-state');
+      if (badgeEl) {
+        badgeEl.classList.remove('badge-cal', 'badge-ven', 'badge-proc', 'badge-prox');
+        badgeEl.classList.add(info.cls);
+        badgeEl.innerHTML = `<i class="fa ${info.icon} me-1"></i>${info.label}`;
+      }
+      showReportToast('Estado actualizado: ' + info.label, 'success');
+    } else {
+      showReportToast('Error: ' + (data.error ?? 'Inténtalo de nuevo.'), 'danger');
+    }
+  } catch (err) {
+    showReportToast('Error de red.', 'danger');
+  } finally {
+    btn.disabled = false;
+    const valInfo = REPORT_STATUS_LABELS[status] ?? { label: status, icon: 'fa-circle-question' };
+    btn.innerHTML = `<i class="fa ${valInfo.icon}"></i>${valInfo.label}`;
+    const ddEl = menu?.closest('.dropdown');
+    if (ddEl) bootstrap.Dropdown.getInstance(ddEl.querySelector('[data-bs-toggle="dropdown"]'))?.hide();
+  }
+});
+
+function showReportToast(msg, type) {
+  let container = document.getElementById('toastContainerReport');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toastContainerReport';
+    container.style.cssText = 'position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;display:flex;flex-direction:column;gap:.5rem;';
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement('div');
+  toast.className = `alert alert-${type} shadow d-flex align-items-center gap-2 py-2 px-3 mb-0`;
+  toast.style.cssText = 'min-width:240px;border-radius:10px;font-size:.9rem;animation:fadeInUp .3s ease;';
+  toast.innerHTML = `<i class="fa fa-${type==='success'?'circle-check':'circle-xmark'}"></i>${msg}`;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 3500);
+}
 </script>
 
 <?php include __DIR__.'/partials/footer.php'; ?>

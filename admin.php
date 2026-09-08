@@ -19,6 +19,7 @@ SELECT
     i.DueDate,
     i.PdfPath AS CurrentPdf,
     i.Comments,
+    i.Status AS status_bd,
     CASE
         WHEN CURRENT_DATE() > i.DueDate THEN 'Vencido'
         WHEN i.DueDate BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) THEN 'Próxima calibración'
@@ -134,10 +135,26 @@ function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES,
 
   <!-- Grid de Cards Estilo App -->
   <div class="instruments-grid" id="instrumentsGrid">
-    <?php foreach ($rows as $r): 
-      $estado = $r['status_calculado'] ?? '';
-      $badge = $estado==='Vencido' ? 'badge-ven' : ($estado==='Próxima calibración' ? 'badge-prox' : 'badge-cal');
-      $stateIcon = $estado==='Vencido' ? 'fa-circle-xmark' : ($estado==='Próxima calibración' ? 'fa-clock' : 'fa-circle-check');
+    <?php foreach ($rows as $r):
+      $statusBd  = (string)($r['status_bd'] ?? '');
+      $estado    = (string)($r['status_calculado'] ?? '');
+      // Lógica híbrida: solo 'en proceso' es manual; el resto se calcula por fechas
+      if ($statusBd === 'en proceso de calibracion') {
+        $badge       = 'badge-proc';
+        $stateIcon   = 'fa-rotate';
+        $estadoLabel = 'En proceso de cal.';
+      } else {
+        // Badge automático por fecha
+        $autoMap = [
+          'Vencido'             => ['badge'=>'badge-ven',  'icon'=>'fa-circle-xmark'],
+          'Próxima calibración' => ['badge'=>'badge-prox', 'icon'=>'fa-clock'],
+          'Calibrado'           => ['badge'=>'badge-cal',  'icon'=>'fa-circle-check'],
+        ];
+        $ai = $autoMap[$estado] ?? ['badge'=>'badge-cal', 'icon'=>'fa-circle-question'];
+        $badge       = $ai['badge'];
+        $stateIcon   = $ai['icon'];
+        $estadoLabel = $estado;
+      }
     ?>
     <div class="instrument-card" data-id="<?= h($r['ID']) ?>">
       <!-- Card Header con Imagen y Estado -->
@@ -154,7 +171,7 @@ function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES,
         <?php endif; ?>
         <div class="card-status-overlay">
           <span class="badge badge-status <?= $badge ?>">
-            <i class="fa <?= $stateIcon ?> me-1"></i><?= h($estado) ?>
+            <i class="fa <?= $stateIcon ?> me-1"></i><?= h($estadoLabel) ?>
           </span>
         </div>
       </div>
@@ -247,11 +264,42 @@ function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES,
           </div>
         <?php endif; ?>
         
-        <div class="action-buttons ms-auto">
+        <div class="action-buttons ms-auto d-flex gap-1 align-items-center">
+          <!-- Dropdown cambiar status -->
+          <div class="dropdown">
+            <button class="btn btn-sm btn-outline-light dropdown-toggle status-btn"
+                    type="button" data-bs-toggle="dropdown" aria-expanded="false"
+                    title="Cambiar estado">
+              <i class="fa fa-sliders me-1"></i>Estado
+            </button>
+            <ul class="dropdown-menu dropdown-menu-dark shadow status-menu"
+                data-id="<?= h((string)$r['ID']) ?>"
+                data-csrf="<?= h(csrf_token()) ?>">
+              <li><h6 class="dropdown-header">Cambiar estado a:</h6></li>
+              <li>
+                <button class="dropdown-item d-flex align-items-center gap-2 status-option"
+                        data-val="calibrado">
+                  <i class="fa fa-circle-check text-success"></i>Calibrado
+                </button>
+              </li>
+              <li>
+                <button class="dropdown-item d-flex align-items-center gap-2 status-option"
+                        data-val="en proceso de calibracion">
+                  <i class="fa fa-rotate text-warning"></i>En proceso de calibración
+                </button>
+              </li>
+              <li>
+                <button class="dropdown-item d-flex align-items-center gap-2 status-option"
+                        data-val="fuera de calibracion">
+                  <i class="fa fa-circle-xmark text-danger"></i>Fuera de calibración
+                </button>
+              </li>
+            </ul>
+          </div>
           <a class="btn btn-primary btn-sm" 
              href="update.php?id=<?= urlencode((string)$r['ID']) ?>" 
              title="Editar">
-            <i class="fa fa-pen-to-square me-1"></i>Editar
+            <i class="fa fa-pen-to-square"></i>
           </a>
           <a class="btn btn-info btn-sm" 
              href="history.php?id=<?= urlencode((string)$r['ID']) ?>" 
@@ -311,13 +359,9 @@ const allCards = cardsGrid ? cardsGrid.querySelectorAll('.instrument-card') : []
 if (searchInput && allCards.length > 0) {
   searchInput.addEventListener('input', (e) => {
     const searchTerm = e.target.value.toLowerCase().trim();
-    
     let visibleCount = 0;
-    
     allCards.forEach(card => {
-      // Buscar en todo el texto de la card
       const cardText = card.textContent.toLowerCase();
-      
       if (searchTerm === '' || cardText.includes(searchTerm)) {
         card.style.display = '';
         visibleCount++;
@@ -325,10 +369,7 @@ if (searchInput && allCards.length > 0) {
         card.style.display = 'none';
       }
     });
-    
-    // Mostrar mensaje si no hay resultados
     let noResultsMsg = document.getElementById('noResultsMessage');
-    
     if (visibleCount === 0 && searchTerm !== '') {
       if (!noResultsMsg) {
         noResultsMsg = document.createElement('div');
@@ -342,6 +383,78 @@ if (searchInput && allCards.length > 0) {
       noResultsMsg.style.display = 'none';
     }
   });
+}
+
+// ===== CAMBIO DE STATUS VÍA AJAX =====
+const STATUS_LABELS = {
+  'calibrado':                 { label: 'Calibrado',               badge: 'badge-cal',  icon: 'fa-circle-check' },
+  'fuera de calibracion':      { label: 'Fuera de calibración',    badge: 'badge-ven',  icon: 'fa-circle-xmark' },
+  'en proceso de calibracion': { label: 'En proceso de cal.',      badge: 'badge-proc', icon: 'fa-rotate' },
+};
+
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.status-option');
+  if (!btn) return;
+
+  const menu   = btn.closest('.status-menu');
+  const card   = btn.closest('.instrument-card');
+  const id     = menu?.dataset.id;
+  const csrf   = menu?.dataset.csrf;
+  const status = btn.dataset.val;
+
+  if (!id || !status) return;
+
+  // Deshabilitar el botón mientras se procesa
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa fa-spinner fa-spin me-2"></i>Guardando…';
+
+  try {
+    const body = new URLSearchParams({ id, status, csrf });
+    const res  = await fetch('update_status.php', { method: 'POST', body });
+    const data = await res.json();
+
+    if (data.ok) {
+      // Actualizar badge en la card
+      const info = STATUS_LABELS[status] ?? { label: status, badge: 'badge-cal', icon: 'fa-circle-question' };
+      const badgeEl = card?.querySelector('.badge-status');
+      if (badgeEl) {
+        // Remover clases de color anteriores
+        badgeEl.classList.remove('badge-cal', 'badge-ven', 'badge-proc', 'badge-prox');
+        badgeEl.classList.add(info.badge);
+        badgeEl.innerHTML = `<i class="fa ${info.icon} me-1"></i>${info.label}`;
+      }
+      // Toast de éxito
+      showStatusToast('Estado actualizado: ' + info.label, 'success');
+    } else {
+      showStatusToast('Error: ' + (data.error ?? 'Inténtalo de nuevo.'), 'danger');
+    }
+  } catch (err) {
+    showStatusToast('Error de red. Inténtalo de nuevo.', 'danger');
+  } finally {
+    // Restaurar botón
+    btn.disabled = false;
+    const valInfo = STATUS_LABELS[status] ?? { label: status, icon: 'fa-circle-question' };
+    btn.innerHTML = `<i class="fa ${valInfo.icon}"></i>${valInfo.label}`;
+    // Cerrar el dropdown
+    const ddEl = menu?.closest('.dropdown');
+    if (ddEl) bootstrap.Dropdown.getInstance(ddEl.querySelector('[data-bs-toggle="dropdown"]'))?.hide();
+  }
+});
+
+function showStatusToast(msg, type) {
+  let container = document.getElementById('toastContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.style.cssText = 'position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;display:flex;flex-direction:column;gap:.5rem;';
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement('div');
+  toast.className = `alert alert-${type} shadow d-flex align-items-center gap-2 py-2 px-3 mb-0`;
+  toast.style.cssText = 'min-width:240px;border-radius:10px;font-size:.9rem;animation:fadeInUp .3s ease;';
+  toast.innerHTML = `<i class="fa fa-${type==='success'?'circle-check':'circle-xmark'}"></i>${msg}`;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 3500);
 }
 </script>
 
@@ -552,6 +665,11 @@ if (searchInput && allCards.length > 0) {
 
 .badge-cal {
   background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  color: #fff;
+}
+
+.badge-proc {
+  background: linear-gradient(135deg, #6f42c1 0%, #a855f7 100%);
   color: #fff;
 }
 

@@ -116,4 +116,14 @@ function require_auth(string|array|null $role=null): void {
             exit();
         }
     }
+    
+    // Bloquear accesos del rol aio a otras pantallas
+    if (($_SESSION['role'] ?? '') === 'aio') {
+        $allowedFiles = ['aio_admin.php', 'aio_export.php', 'aio_report_print.php', 'aio_history.php', 'aio_add.php', 'aio_update.php', 'aio_scrap.php', 'aio_scrap_session.php', 'aio_packages.php', 'aio_audit.php', 'aio_ajax.php', 'logout.php'];
+        $currentFile = basename($_SERVER['PHP_SELF']);
+        if (!in_array($currentFile, $allowedFiles, true) && !str_starts_with($currentFile, 'aio_')) {
+            header('Location: aio_admin.php');
+            exit();
+        }
+    }
 }

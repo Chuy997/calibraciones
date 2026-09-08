@@ -1,13 +1,13 @@
 <?php
-// /var/www/html/calibraciones/assets_hw_admin.php
+// /var/www/html/calibraciones/aio_view.php
 declare(strict_types=1);
 
 require_once __DIR__.'/config.php';
-require_auth(['admin','ingenieria']); // solo administradores
+require_auth(); // cualquier usuario (admin o consulta)
 
 function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
-// Consulta básica de inventario Ingenieria (sin tocar BD)
+// Consulta de materiales AIO (solo lectura)
 $sql = <<<SQL
 SELECT
   ID,
@@ -19,14 +19,13 @@ SELECT
   Department,
   Owner,
   Status,
+  Pedimento,
   Picture,
   Document,
-  Pedimento,
   Comments,
   CreatedAt,
   UpdatedAt
-FROM assets_hw_items
-WHERE Status != 'Scrap'
+FROM aio_items
 ORDER BY ID ASC
 SQL;
 
@@ -35,20 +34,8 @@ $rows = pdo()->query($sql)->fetchAll();
 <?php include __DIR__.'/partials/header.php'; ?>
 
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-  <h1 class="h4 m-0">Assets HW – Inventario</h1>
-  <div class="d-flex gap-2">
-    <a class="btn btn-primary" href="assets_hw_audit.php"><i class="fa fa-clipboard-check me-1"></i> Auditar</a>
-    <a class="btn btn-info text-white" href="assets_hw_packages.php"><i class="fa fa-box-open me-1"></i> Paquetes</a>
-    <a class="btn btn-success" href="assets_hw_add.php"><i class="fa fa-plus me-1"></i> Nuevo</a>
-  </div>
+  <h1 class="h4 m-0">Activos Ingeniería – Consulta (solo lectura)</h1>
 </div>
-
-<?php if (($_GET['msg'] ?? '') === 'NoID'): ?>
-  <div class="alert alert-warning alert-dismissible fade show" role="alert">
-    <strong>Atención:</strong> Por favor seleccione un material de la lista para enviarlo a Scrap.
-    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-  </div>
-<?php endif; ?>
 
 <div class="card p-3 table-density-comfort dt-container">
   <div class="dt-toolbar">
@@ -57,16 +44,11 @@ $rows = pdo()->query($sql)->fetchAll();
       <input type="text" class="form-control dt-search" placeholder="Buscar…">
     </div>
 
-    <select class="form-select dt-density" style="max-width:180px;">
-      <option value="comfort">Densidad: cómoda</option>
-      <option value="compact"selected>Densidad: compacta</option>
-    </select>
-
     <select class="form-select dt-rows-per-page" style="max-width:160px;">
       <option value="10">10 por página</option>
       <option value="20">20 por página</option>
-      <option value="50"selected>50 por página</option>
-      <option value="100">100 por página</option>
+      <option value="50">50 por página</option>
+      <option value="100" selected>100 por página</option>
     </select>
 
     <div class="dropdown">
@@ -75,11 +57,13 @@ $rows = pdo()->query($sql)->fetchAll();
         <?php
           $cols = [
             'ID','Foto','Descripción','Marca','Modelo','Serie',
-            'Ubicación','Depto','Responsable','Estado','Documento','Asset No','Acciones'
+            'Ubicación','Depto','Responsable','Estado','Documento','Pedimento'
           ];
-          foreach ($cols as $i=>$c): ?>
+          foreach ($cols as $i=>$c): 
+            $checked = ($c === 'Documento' || $c === 'Pedimento') ? '' : 'checked';
+          ?>
           <label class="dropdown-item d-flex align-items-center gap-2">
-            <input class="form-check-input me-2" type="checkbox" data-col="<?= $i ?>" checked>
+            <input class="form-check-input me-2" type="checkbox" data-col="<?= $i ?>" <?= $checked ?>>
             <span><?= h($c) ?></span>
           </label>
         <?php endforeach; ?>
@@ -93,22 +77,14 @@ $rows = pdo()->query($sql)->fetchAll();
         </button>
         <ul class="dropdown-menu dropdown-menu-dark p-2">
           <li>
-            <a class="dropdown-item d-flex align-items-center gap-2" href="assets_hw_export.php">
+            <a class="dropdown-item d-flex align-items-center gap-2" href="aio_export.php">
               <i class="fa fa-file-excel text-success"></i> <span>Excel (CSV)</span>
             </a>
           </li>
           <li>
-            <a class="dropdown-item d-flex align-items-center gap-2" href="assets_hw_inventory_print.php" target="_blank">
+            <button class="dropdown-item d-flex align-items-center gap-2" onclick="window.print()">
               <i class="fa fa-print text-white"></i> <span>Imprimir / PDF</span>
-            </a>
-          </li>
-          <li>
-            <hr class="dropdown-divider">
-          </li>
-          <li>
-            <a class="dropdown-item d-flex align-items-center gap-2" href="assets_hw_download.php">
-              <i class="fa fa-file-image text-info"></i> <span>Descargar Lista (con Fotos ligeras)</span>
-            </a>
+            </button>
           </li>
         </ul>
       </div>
@@ -122,7 +98,7 @@ $rows = pdo()->query($sql)->fetchAll();
 
   <div class="table-wrap">
     <div class="table-scroll">
-      <table class="table table-striped table-hover align-middle" id="ingenieriaTable">
+      <table class="table table-striped table-hover align-middle" id="aioViewTable">
         <thead>
           <tr>
             <th class="th-sort" data-sort="text">ID <span class="sort-ind">▲▼</span></th>
@@ -135,21 +111,19 @@ $rows = pdo()->query($sql)->fetchAll();
             <th class="th-sort" data-sort="text">Depto <span class="sort-ind">▲▼</span></th>
             <th class="th-sort" data-sort="text">Responsable <span class="sort-ind">▲▼</span></th>
             <th class="th-sort" data-sort="text">Estado <span class="sort-ind">▲▼</span></th>
-            <th>Documento</th>
-            <th class="th-sort" data-sort="text">Asset No <span class="sort-ind">▲▼</span></th>
-            <th>Acciones</th>
+            <th style="display:none;">Documento</th>
+            <th class="th-sort" data-sort="text" style="display:none;">Pedimento <span class="sort-ind">▲▼</span></th>
           </tr>
         </thead>
         <tbody>
         <?php foreach ($rows as $r):
           $status = (string)($r['Status'] ?? '');
-          $badge = $status === 'Scrap' ? 'badge-ven' : 'badge-cal'; // reuso estilos (rojo para Scrap / verde para Activo)
+          $badge  = $status === 'Scrap' ? 'badge-ven' : 'badge-cal'; // rojo para Scrap / verde para Activo
         ?>
           <tr>
             <td><?= h($r['ID']) ?></td>
             <td class="text-center">
               <?php if (!empty($r['Picture'])): ?>
-                <!-- Miniatura con modal (igual a history) -->
                 <img src="<?= h($r['Picture']) ?>" class="img-thumb" alt="img"
                      data-bs-toggle="modal" data-bs-target="#imagePreviewModal"
                      data-src="<?= h($r['Picture']) ?>">
@@ -163,33 +137,14 @@ $rows = pdo()->query($sql)->fetchAll();
             <td><?= h($r['Department']) ?></td>
             <td><?= h($r['Owner']) ?></td>
             <td><span class="badge badge-state <?= $badge ?>"><?= h($status) ?></span></td>
-            <td class="text-center">
+            <td class="text-center" style="display:none;">
               <?php if (!empty($r['Document'])): ?>
                 <a href="<?= h($r['Document']) ?>" target="_blank" class="btn btn-sm btn-outline-light" title="Ver documento PDF">
                   <i class="fa fa-file-pdf"></i>
                 </a>
               <?php else: ?>—<?php endif; ?>
             </td>
-            <td><?= h($r['Pedimento']) ?></td>
-            <td>
-              <div class="btn-group">
-                <a class="btn btn-primary btn-sm" href="assets_hw_update.php?id=<?= urlencode((string)$r['ID']) ?>" title="Editar">
-                  <i class="fa fa-pen-to-square"></i>
-                </a>
-                <a class="btn btn-info btn-sm" href="assets_hw_history.php?id=<?= urlencode((string)$r['ID']) ?>" title="Historial">
-                  <i class="fa fa-clock-rotate-left"></i>
-                </a>
-                <?php if ($status !== 'Scrap'): ?>
-                  <a class="btn btn-warning btn-sm" href="assets_hw_scrap.php?id=<?= urlencode((string)$r['ID']) ?>" title="Enviar a Scrap">
-                    <i class="fa fa-triangle-exclamation"></i>
-                  </a>
-                <?php else: ?>
-                  <button class="btn btn-secondary btn-sm" disabled title="Ya en Scrap">
-                    <i class="fa fa-ban"></i>
-                  </button>
-                <?php endif; ?>
-              </div>
-            </td>
+            <td style="display:none;"><?= h($r['Pedimento'] ?? '') ?></td>
           </tr>
         <?php endforeach; ?>
         </tbody>
@@ -198,12 +153,12 @@ $rows = pdo()->query($sql)->fetchAll();
   </div>
 
   <div class="d-flex justify-content-between align-items-center mt-2">
-    <small class="text-secondary">Búsqueda, orden y paginación en el navegador.</small>
+    <small class="text-secondary">Solo lectura.</small>
     <div class="dt-pager"></div>
   </div>
 </div>
 
-<!-- Modal imagen (reutiliza el de history) -->
+<!-- Modal imagen (misma UX que en history/aio_admin) -->
 <div class="modal fade" id="imagePreviewModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content bg-dark">
@@ -219,7 +174,7 @@ $rows = pdo()->query($sql)->fetchAll();
 </div>
 
 <script>
-// Modal de imagen (igual a history)
+// Modal de imagen
 const imgModal = document.getElementById('imagePreviewModal');
 if (imgModal) {
   imgModal.addEventListener('show.bs.modal', (ev) => {
@@ -232,7 +187,7 @@ if (imgModal) {
   });
 }
 
-// Mini-datatable
+// Mini-datatable (igual a otras vistas)
 (function(){
   const container = document.querySelector('.dt-container');
   if (!container) return;
@@ -243,9 +198,8 @@ if (imgModal) {
   const pagerEl = container.querySelector('.dt-pager');
   const colvis  = container.querySelectorAll('.colvis-menu input[type="checkbox"]');
   const filter  = container.querySelector('.dt-filter');
-  const density = container.querySelector('.dt-density');
 
-  // Orden
+  // Ordenamiento
   let sortCol = 0, sortDir = 1;
   table.querySelectorAll('th.th-sort').forEach((th,idx)=>{
     th.addEventListener('click', ()=>{
@@ -287,13 +241,6 @@ if (imgModal) {
     });
   });
 
-  // Densidad
-  density?.addEventListener('change', ()=>{
-    const val = density.value; // comfort | compact
-    container.classList.toggle('table-density-compact', val === 'compact');
-    container.classList.toggle('table-density-comfort', val !== 'compact');
-  });
-
   // Paginación
   let page = 1;
   function paginate(){
@@ -312,7 +259,6 @@ if (imgModal) {
     }
   }
   rowsSel?.addEventListener('change', ()=>{ page=1; paginate(); });
-
   applyFilters();
 })();
 </script>

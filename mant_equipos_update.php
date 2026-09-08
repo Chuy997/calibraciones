@@ -70,6 +70,8 @@ $cycleDates = [
 // Campos editables
 $defaultCycle = array_key_first($enabledCycles);
 $values = [
+    'id'             => $id,
+    'description'    => (string)($equipo['Description'] ?? ''),
     'lastMaintDate'  => $cycleDates[$defaultCycle]['last'],
     'selectedCycle'  => $defaultCycle,
     'location'       => (string)($equipo['Location'] ?? ''),
@@ -286,10 +288,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Sesión expirada. Por favor, vuelve a intentar.';
     }
 
+    $newId                   = trim($_POST['new_id'] ?? $_POST['id'] ?? '');
+    $values['id']            = $newId;
+    $values['description']   = trim($_POST['description']   ?? '');
     $values['lastMaintDate'] = trim($_POST['lastMaintDate'] ?? '');
     $values['selectedCycle'] = trim($_POST['cycle'] ?? $defaultCycle);
     $values['location']      = trim($_POST['location']      ?? '');
     $values['comments']      = trim($_POST['comments']      ?? '');
+
+    if ($newId === '' || !preg_match('/^[A-Za-z0-9._-]+$/', $newId)) {
+        $errors[] = 'ID inválido (solo letras, números, ".", "_" y "-").';
+    } elseif ($newId !== $id) {
+        $chk = $pdo->prepare('SELECT COUNT(*) FROM mant_equipos WHERE ID = ?');
+        $chk->execute([$newId]);
+        if ((int)$chk->fetchColumn() > 0) {
+            $errors[] = 'Ya existe un equipo con el ID "' . $newId . '".';
+        }
+    }
+
+    if ($values['description'] === '') {
+        $errors[] = 'Debes ingresar el nombre o descripción del equipo.';
+    }
 
     // Validar que el ciclo seleccionado está habilitado para este equipo
     if (!array_key_exists($values['selectedCycle'], $enabledCycles)) {
@@ -320,7 +339,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $pdo->beginTransaction();
 
-            $destDirAbs    = __DIR__ . '/uploads/mant_equipos/' . $id . '/';
+            // Renombrar carpeta de uploads si cambió el ID
+            $oldDirAbs = __DIR__ . '/uploads/mant_equipos/' . $id;
+            $newDirAbs = __DIR__ . '/uploads/mant_equipos/' . $newId;
+            if ($newId !== $id && is_dir($oldDirAbs) && !is_dir($newDirAbs)) {
+                @rename($oldDirAbs, $newDirAbs);
+            }
+
+            if ($newId !== $id) {
+                $oldRelPart = '/uploads/mant_equipos/' . $id . '/';
+                $newRelPart = '/uploads/mant_equipos/' . $newId . '/';
+                if ($pdfPath && str_contains($pdfPath, $oldRelPart)) {
+                    $pdfPath = str_replace($oldRelPart, $newRelPart, $pdfPath);
+                }
+                if ($picturePath && str_contains($picturePath, $oldRelPart)) {
+                    $picturePath = str_replace($oldRelPart, $newRelPart, $picturePath);
+                }
+            }
+
+            $destDirAbs    = __DIR__ . '/uploads/mant_equipos/' . $newId . '/';
             $newPdfUrl     = handleUploadMantU('pdf',     $destDirAbs, 'pdf_or_img');
             $newPictureUrl = handleUploadMantU('picture', $destDirAbs, 'img');
             if ($newPdfUrl !== null)     { $pdfPath     = $newPdfUrl; }
@@ -331,37 +368,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $statusAuto = calcStatusU($nextMaintDate);
                 $pdo->prepare("
                     UPDATE mant_equipos
-                       SET LastMaintDate = :last, NextMaintDate = :next,
+                       SET ID = :new_id,
+                           Description = :desc,
+                           LastMaintDate = :last, NextMaintDate = :next,
                            MaintPeriod = '1Y', Status = :status,
                            Location = :loc, Comments = :cmt,
                            PdfPath = :pdf, Picture = :pic
-                     WHERE ID = :id
-                ")->execute([':last'=>$values['lastMaintDate'],':next'=>$nextMaintDate,
+                     WHERE ID = :old_id
+                ")->execute([
+                    ':new_id'=>$newId,
+                    ':desc'=>$values['description'],
+                    ':last'=>$values['lastMaintDate'],':next'=>$nextMaintDate,
                     ':status'=>$statusAuto,':loc'=>$values['location'],
                     ':cmt'=>$values['comments'],':pdf'=>$pdfPath?:null,
-                    ':pic'=>$picturePath?:null,':id'=>$id]);
+                    ':pic'=>$picturePath?:null,':old_id'=>$id]);
             } elseif ($values['selectedCycle'] === '3M') {
                 $pdo->prepare("
                     UPDATE mant_equipos
-                       SET LastMaintDate_3M = :last, NextMaintDate_3M = :next,
+                       SET ID = :new_id,
+                           Description = :desc,
+                           LastMaintDate_3M = :last, NextMaintDate_3M = :next,
                            Location = :loc, Comments = :cmt,
                            PdfPath = :pdf, Picture = :pic
-                     WHERE ID = :id
-                ")->execute([':last'=>$values['lastMaintDate'],':next'=>$nextMaintDate,
+                     WHERE ID = :old_id
+                ")->execute([
+                    ':new_id'=>$newId,
+                    ':desc'=>$values['description'],
+                    ':last'=>$values['lastMaintDate'],':next'=>$nextMaintDate,
                     ':loc'=>$values['location'],':cmt'=>$values['comments'],
-                    ':pdf'=>$pdfPath?:null,':pic'=>$picturePath?:null,':id'=>$id]);
+                    ':pdf'=>$pdfPath?:null,':pic'=>$picturePath?:null,':old_id'=>$id]);
                 $statusAuto = calcStatusU((string)($equipo['NextMaintDate'] ?? $nextMaintDate));
             } else { // 1M
                 $pdo->prepare("
                     UPDATE mant_equipos
-                       SET LastMaintDate_1M = :last, NextMaintDate_1M = :next,
+                       SET ID = :new_id,
+                           Description = :desc,
+                           LastMaintDate_1M = :last, NextMaintDate_1M = :next,
                            Location = :loc, Comments = :cmt,
                            PdfPath = :pdf, Picture = :pic
-                     WHERE ID = :id
-                ")->execute([':last'=>$values['lastMaintDate'],':next'=>$nextMaintDate,
+                     WHERE ID = :old_id
+                ")->execute([
+                    ':new_id'=>$newId,
+                    ':desc'=>$values['description'],
+                    ':last'=>$values['lastMaintDate'],':next'=>$nextMaintDate,
                     ':loc'=>$values['location'],':cmt'=>$values['comments'],
-                    ':pdf'=>$pdfPath?:null,':pic'=>$picturePath?:null,':id'=>$id]);
+                    ':pdf'=>$pdfPath?:null,':pic'=>$picturePath?:null,':old_id'=>$id]);
                 $statusAuto = calcStatusU((string)($equipo['NextMaintDate'] ?? $nextMaintDate));
+            }
+
+            // Actualizar historial previo si cambió el ID
+            if ($newId !== $id) {
+                $pdo->prepare("
+                    UPDATE mant_equipos_history
+                       SET EquipoID = :newId,
+                           PdfPath = REPLACE(PdfPath, :oldRel1, :newRel1),
+                           Picture = REPLACE(Picture, :oldRel2, :newRel2)
+                     WHERE EquipoID = :oldId
+                ")->execute([
+                    ':newId'   => $newId,
+                    ':oldRel1' => '/uploads/mant_equipos/' . $id . '/',
+                    ':newRel1' => '/uploads/mant_equipos/' . $newId . '/',
+                    ':oldRel2' => '/uploads/mant_equipos/' . $id . '/',
+                    ':newRel2' => '/uploads/mant_equipos/' . $newId . '/',
+                    ':oldId'   => $id,
+                ]);
             }
 
             // INSERT historial con CycleType
@@ -376,8 +446,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                    :Location,:LastMaintDate,:NextMaintDate,:MaintPeriod,:CycleType,:Status,
                    :Comments,:PdfPath,:Picture)
             ")->execute([
-                ':EquipoID'      => $id,
-                ':Description'   => $description,
+                ':EquipoID'      => $newId,
+                ':Description'   => $values['description'],
                 ':Brand'         => $brand,
                 ':Model'         => $model,
                 ':SerialNumber'  => $serialNumber,
@@ -422,13 +492,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <form method="POST" action="mant_equipos_update.php?id=<?= h($id) ?>" enctype="multipart/form-data" novalidate>
       <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
-      <input type="hidden" name="id"   value="<?= h($id) ?>">
+      <input type="hidden" name="original_id" value="<?= h($id) ?>">
 
       <div class="row g-3">
-        <!-- Datos de solo lectura -->
-        <div class="col-12">
-          <label class="form-label">Equipo</label>
-          <input type="text" class="form-control" value="<?= h($id) ?> — <?= h($description) ?>" disabled>
+        <!-- Identificador del equipo (editable) -->
+        <div class="col-sm-4">
+          <label for="new_id" class="form-label">ID del Equipo <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="new_id" name="new_id"
+                 value="<?= h($values['id']) ?>" required
+                 placeholder="Ej: TORNO-01">
+        </div>
+
+        <!-- Nombre / Descripción del equipo (editable) -->
+        <div class="col-sm-8">
+          <label for="description" class="form-label">
+            Nombre / Descripción del Equipo <span class="text-danger">*</span>
+          </label>
+          <input type="text" id="description" name="description" class="form-control"
+                 value="<?= h($values['description']) ?>" required>
         </div>
 
         <div class="col-sm-4">

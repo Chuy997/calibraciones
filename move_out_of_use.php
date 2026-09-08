@@ -15,7 +15,8 @@ if (!$id || !preg_match('/^[A-Za-z0-9._-]+$/', $id)) {
 }
 
 $errors = [];
-$reason = $_POST['ReasonForRemoval'] ?? '';
+$reason  = $_POST['ReasonForRemoval'] ?? '';
+$comment = $_POST['RemovalComment'] ?? '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // CSRF
@@ -23,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Sesión expirada. Intenta de nuevo.';
     }
     // Validar razón (mismas opciones que manejas en UI/BD)
-    $allowedReasons = ['Obsoleto', 'Fuera de Calibración', 'No Funciona'];
+    $allowedReasons = ['Obsoleto', 'Fuera de Calibración', 'No Funciona', 'Scrap'];
     if (!in_array($reason, $allowedReasons, true)) {
         $errors[] = 'Razón inválida.';
     }
@@ -38,8 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Llamada al procedimiento almacenado
             // Nota: si tu SP compara cadenas, ahora la conexión y los literales usan unicode_ci
-            $stmt = $pdo->prepare("CALL MoveInstrumentOutOfUse(:id, :reason)");
-            $stmt->execute([':id' => $id, ':reason' => $reason]);
+            $stmt = $pdo->prepare("CALL MoveInstrumentOutOfUse(:id, :reason, :comment)");
+            $stmt->execute([':id' => $id, ':reason' => $reason, ':comment' => $comment]);
 
             // Consumir posibles resultsets extra de CALL
             while ($stmt->nextRowset()) {}
@@ -81,12 +82,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <label for="ReasonForRemoval" class="form-label">Razón</label>
           <select class="form-select" id="ReasonForRemoval" name="ReasonForRemoval" required>
             <?php
-              $opts = ['Obsoleto','Fuera de Calibración','No Funciona'];
+              $opts = ['Obsoleto','Fuera de Calibración','No Funciona','Scrap'];
               foreach ($opts as $opt):
             ?>
               <option value="<?= h($opt) ?>" <?= ($reason===$opt)?'selected':'' ?>><?= h($opt) ?></option>
             <?php endforeach; ?>
           </select>
+        </div>
+
+        <div class="mb-3">
+          <label for="RemovalComment" class="form-label">Comentario <span class="text-muted">(opcional)</span></label>
+          <textarea class="form-control" id="RemovalComment" name="RemovalComment" rows="3"
+                    placeholder="Describe el motivo o detalle adicional..."><?= h($comment) ?></textarea>
         </div>
 
         <div class="d-flex gap-2">

@@ -1,0 +1,532 @@
+<?php
+// /var/www/html/calibraciones/aio_add.php
+declare(strict_types=1);
+
+require_once __DIR__ . '/config.php';
+require_auth(['admin','ingenieria','aio']); // solo admin
+
+function h(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+
+$pdo = pdo();
+
+// LÍMITES Y VALIDACIONES DE ARCHIVOS
+const MAX_IMG_BYTES = 8 * 1024 * 1024;   // 8MB para foto
+const MAX_PDF_BYTES = 20 * 1024 * 1024;  // 20MB para documento
+$ALLOWED_IMG_EXT = ['jpg','jpeg','png','webp','heic','heif']; // móviles iOS/Android
+$ALLOWED_PDF_EXT = ['pdf'];
+
+// --- Utilidad: siguiente ID AIO-XXX ---
+function next_aio_id(PDO $pdo): string {
+    // Toma el máximo numérico de IDs AIO-###
+    $st = $pdo->query("SELECT MAX(CAST(SUBSTRING(ID, 5) AS UNSIGNED)) AS maxnum
+                       FROM aio_items
+                       WHERE ID LIKE 'AIO-%'");
+    $max = (int)($st->fetchColumn() ?: 0);
+    $n   = $max + 1;
+    return sprintf('AIO-%03d', $n);
+}
+
+// ID sugerido (preview en el formulario)
+$suggestedId = next_aio_id($pdo);
+
+$errors = [];
+$values = [
+  // ID se asigna automáticamente; solo se muestra el sugerido
+  'description'  => '',
+  'brand'        => '',
+  'model'        => '',
+  'serialNumber' => '',
+  'pedimento'    => '',   // opcional
+  'location'     => '',
+  'department'   => '',
+  'owner'        => '',
+  'status'       => 'Activo',    // por defecto
+  'comments'     => '',
+  'qty'          => '1',
+  'hw_nre'       => '',
+  'hw_asset'     => '',
+  'zl_asset'     => '',
+  'ai_asset'     => '',
+  'received_date'=> '',
+  'xy_asset'     => '',
+  'years'        => '',
+  'come_form'    => '',
+];
+
+// --- Helpers subida ---
+function uploadErrMsg(int $code): string {
+    return match ($code) {
+        UPLOAD_ERR_INI_SIZE   => 'El archivo excede upload_max_filesize del servidor.',
+        UPLOAD_ERR_FORM_SIZE  => 'El archivo excede MAX_FILE_SIZE del formulario.',
+        UPLOAD_ERR_PARTIAL    => 'El archivo se subió parcialmente.',
+        UPLOAD_ERR_NO_FILE    => 'No se subió ningún archivo.',
+        UPLOAD_ERR_NO_TMP_DIR => 'Falta el directorio temporal del servidor.',
+        UPLOAD_ERR_CANT_WRITE => 'No se pudo escribir el archivo en disco.',
+        UPLOAD_ERR_EXTENSION  => 'Una extensión de PHP detuvo la subida.',
+        default               => 'Error desconocido en la subida.',
+    };
+}
+
+/**
+ * Sube archivo al directorio $destDirAbs.
+ * $kind: 'img' | 'pdf'
+ * Devuelve ruta web ABSOLUTA (empieza con /calibraciones/...) o null si no hubo archivo.
+ * Convierte HEIC/HEIF a JPG si existe Imagick.
+ */
+function handleUpload(string $field, string $destDirAbs, string $kind): ?string {
+    if (!isset($_FILES[$field]) || $_FILES[$field]['error'] === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+
+    // Errores amigables
+    $err = (int)$_FILES[$field]['error'];
+    if ($err !== UPLOAD_ERR_OK) {
+        throw new RuntimeException("Error al subir {$field}: " . uploadErrMsg($err));
+    }
+
+    $tmp  = $_FILES[$field]['tmp_name'];
+    $name = $_FILES[$field]['name'] ?? $kind;
+    $size = (int)($_FILES[$field]['size'] ?? 0);
+    $ext  = strtolower(pathinfo($name, PATHINFO_EXTENSION) ?: '');
+
+    if ($kind === 'pdf') {
+        if ($size > MAX_PDF_BYTES) throw new RuntimeException("El documento excede 20MB.");
+        global $ALLOWED_PDF_EXT;
+        if (!in_array($ext, $ALLOWED_PDF_EXT, true)) throw new RuntimeException("Extensión de documento no permitida.");
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime  = finfo_file($finfo, $tmp) ?: '';
+        finfo_close($finfo);
+        if (stripos($mime, 'pdf') === false) throw new RuntimeException("El archivo no es un PDF válido.");
+    } else {
+        if ($size > MAX_IMG_BYTES) throw new RuntimeException("La imagen excede 8MB.");
+        global $ALLOWED_IMG_EXT;
+        $isHeic = in_array($ext, ['heic','heif'], true);
+
+        if (!in_array($ext, $ALLOWED_IMG_EXT, true)) {
+            // Extensión desconocida: valida por MIME
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mime  = finfo_file($finfo, $tmp) ?: '';
+            finfo_close($finfo);
+            if (!str_starts_with((string)$mime, 'image/')) {
+                throw new RuntimeException("El archivo de imagen es inválido.");
+            }
+            // asigna extensión segura si no vino
+            $ext = 'jpg';
+        } else {
+            // Para HEIC/HEIF no uses getimagesize (suele fallar). Para el resto sí.
+            if (!$isHeic && @getimagesize($tmp) === false) {
+                throw new RuntimeException("La imagen es inválida.");
+            }
+        }
+    }
+
+    // Asegura carpeta
+    if (!is_dir($destDirAbs) && !mkdir($destDirAbs, 0755, true) && !is_dir($destDirAbs)) {
+        throw new RuntimeException("No se pudo crear el directorio de carga.");
+    }
+
+    // Nombre seguro
+    $base = pathinfo($name, PATHINFO_FILENAME) ?: $kind;
+    $safe = preg_replace('/[^A-Za-z0-9_\-]/', '_', $base);
+    if ($safe === '') $safe = $kind;
+    $final   = $safe . '_' . time() . '.' . $ext;
+    $destAbs = rtrim($destDirAbs, '/') . '/' . $final;
+
+    if (!move_uploaded_file($tmp, $destAbs)) {
+        throw new RuntimeException("No se pudo mover el archivo subido.");
+    }
+
+    // Conversión HEIC/HEIF → JPG si hay Imagick
+    if ($kind === 'img' && in_array($ext, ['heic','heif'], true) && class_exists('Imagick')) {
+        try {
+            $img = new Imagick($destAbs);
+            $img->setImageFormat('jpeg');
+            $jpgPathAbs = preg_replace('/\.(heic|heif)$/i', '.jpg', $destAbs);
+            $img->writeImage($jpgPathAbs);
+            $img->clear(); $img->destroy();
+            @unlink($destAbs);            // borra el HEIC original
+            $destAbs = $jpgPathAbs;       // usa el JPG como definitivo
+        } catch (Throwable $e) {
+            // Si falla la conversión, dejamos el HEIC tal cual (algunos navegadores no lo mostrarán)
+        }
+    }
+
+    // Ruta web ABSOLUTA (con / inicial)
+    $docroot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '/var/www/html', '/') . '/';
+    $rel     = ltrim(str_replace($docroot, '', $destAbs), '/'); // calibraciones/uploads/...
+    if (!str_starts_with($rel, 'calibraciones/')) {
+        $rel = 'calibraciones/' . $rel;
+    }
+    return '/' . ltrim($rel, '/');
+}
+
+// --- POST: guardar ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // CSRF
+    if (!isset($_POST['csrf']) || !csrf_validate($_POST['csrf'])) {
+        $errors[] = 'Sesión expirada. Vuelve a intentar.';
+    }
+
+    // Recoger (sin ID: se genera automáticamente)
+    foreach (['description','brand','model','serialNumber','pedimento','location','department','owner','status','comments','qty','hw_nre','hw_asset','zl_asset','ai_asset','received_date','xy_asset','years','come_form'] as $k) {
+        $values[$k] = trim((string)($_POST[$k] ?? ''));
+    }
+
+    // Validaciones
+    if ($values['description'] === '') $errors[] = 'La descripción es obligatoria.';
+    if ($values['location'] === '')    $errors[] = 'La ubicación es obligatoria.';
+    if ($values['department'] === '')  $errors[] = 'El departamento es obligatorio.';
+    if ($values['owner'] === '')       $errors[] = 'El responsable es obligatorio.';
+    // pedimento: opcional (sin validación)
+
+    if (!$errors) {
+        try {
+            $pdo->beginTransaction();
+
+            // Recalcular el siguiente ID dentro de la transacción (mitiga condiciones de carrera)
+            $newId = next_aio_id($pdo);
+
+            // Carpeta por ID
+            $destDirAbs = __DIR__ . '/uploads/aio/' . $newId . '/';
+
+            // Subir archivos (opcionales)
+            $pictureRel  = handleUpload('picture',  $destDirAbs, 'img'); // puede ser null
+            $documentRel = handleUpload('document', $destDirAbs, 'pdf'); // puede ser null
+
+            // Insert principal (incluye Pedimento e ID auto)
+            $ins = $pdo->prepare("
+                INSERT INTO aio_items
+                  (ID, Description, Brand, Model, SerialNumber, Pedimento, Location, Department, Owner, Status, Picture, Document, Comments, Qty, HW_NRE, HW_Asset, ZL_Asset, AI_Asset, ReceivedDate, XY_Asset, Years, Come_form, CreatedAt, UpdatedAt)
+                VALUES
+                  (:ID,:Description,:Brand,:Model,:SerialNumber,:Pedimento,:Location,:Department,:Owner,:Status,:Picture,:Document,:Comments,:Qty,:HW_NRE,:HW_Asset,:ZL_Asset,:AI_Asset,:ReceivedDate,:XY_Asset,:Years,:Come_form,NOW(),NOW())
+            ");
+            $ins->execute([
+              ':ID'           => $newId,
+              ':Description'  => $values['description'],
+              ':Brand'        => $values['brand'] ?: null,
+              ':Model'        => $values['model'] ?: null,
+              ':SerialNumber' => $values['serialNumber'] ?: null,
+              ':Pedimento'    => $values['pedimento'] ?: null,
+              ':Location'     => $values['location'],
+              ':Department'   => $values['department'],
+              ':Owner'        => $values['owner'],
+              ':Status'       => $values['status'] ?: 'Activo',
+              ':Picture'      => $pictureRel,
+              ':Document'     => $documentRel,
+              ':Comments'     => $values['comments'] ?: null,
+              ':Qty'          => $values['qty'] ?: 1,
+              ':HW_NRE'       => $values['hw_nre'] ?: null,
+              ':HW_Asset'     => $values['hw_asset'] ?: null,
+              ':ZL_Asset'     => $values['zl_asset'] ?: null,
+              ':AI_Asset'     => $values['ai_asset'] ?: null,
+              ':ReceivedDate' => $values['received_date'] ?: null,
+              ':XY_Asset'     => $values['xy_asset'] ?: null,
+              ':Years'        => $values['years'] ?: null,
+              ':Come_form'    => $values['come_form'] ?: null,
+            ]);
+
+            // Historial inicial (incluye Pedimento)
+            $hst = $pdo->prepare("
+                INSERT INTO aio_history
+                  (AioID, Action, Description, Brand, Model, SerialNumber, Pedimento, Location, Department, Owner, Status, Picture, Document, Comments, Qty, HW_NRE, HW_Asset, ZL_Asset, AI_Asset, ReceivedDate, XY_Asset, Years, Come_form, CreatedAt)
+                VALUES
+                  (:AioID,'create',:Description,:Brand,:Model,:SerialNumber,:Pedimento,:Location,:Department,:Owner,:Status,:Picture,:Document,:Comments,:Qty,:HW_NRE,:HW_Asset,:ZL_Asset,:AI_Asset,:ReceivedDate,:XY_Asset,:Years,:Come_form,NOW())
+            ");
+            $hst->execute([
+              ':AioID'     => $newId,
+              ':Description'  => $values['description'],
+              ':Brand'        => $values['brand'] ?: null,
+              ':Model'        => $values['model'] ?: null,
+              ':SerialNumber' => $values['serialNumber'] ?: null,
+              ':Pedimento'    => $values['pedimento'] ?: null,
+              ':Location'     => $values['location'],
+              ':Department'   => $values['department'],
+              ':Owner'        => $values['owner'],
+              ':Status'       => $values['status'] ?: 'Activo',
+              ':Picture'      => $pictureRel,
+              ':Document'     => $documentRel,
+              ':Comments'     => $values['comments'] ?: null,
+              ':Qty'          => $values['qty'] ?: 1,
+              ':HW_NRE'       => $values['hw_nre'] ?: null,
+              ':HW_Asset'     => $values['hw_asset'] ?: null,
+              ':ZL_Asset'     => $values['zl_asset'] ?: null,
+              ':AI_Asset'     => $values['ai_asset'] ?: null,
+              ':ReceivedDate' => $values['received_date'] ?: null,
+              ':XY_Asset'     => $values['xy_asset'] ?: null,
+              ':Years'        => $values['years'] ?: null,
+              ':Come_form'    => $values['come_form'] ?: null,
+            ]);
+
+            $pdo->commit();
+            header('Location: aio_admin.php');
+            exit;
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $errors[] = 'Error al guardar: ' . $e->getMessage();
+        }
+    }
+}
+?>
+<?php include __DIR__ . '/partials/header.php'; ?>
+
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8 col-xl-7">
+    <h1 class="h4 my-3">Nuevo material Activos Ingeniería</h1>
+
+    <?php if ($errors): ?>
+      <div class="alert alert-danger">
+        <ul class="m-0 ps-3">
+          <?php foreach ($errors as $err): ?>
+            <li><?= h($err) ?></li>
+          <?php endforeach; ?>
+        </ul>
+      </div>
+    <?php endif; ?>
+
+    <form method="POST" action="aio_add.php" enctype="multipart/form-data" class="needs-validation" novalidate>
+      <input type="hidden" name="csrf" value="<?= h(csrf_token()) ?>">
+
+      <div class="row g-3">
+        <!-- ID (auto-asignado, solo lectura) -->
+        <div class="col-12">
+          <label class="form-label">ID (se asigna automáticamente)</label>
+          <input type="text" class="form-control" value="<?= h($suggestedId) ?>" disabled>
+          <div class="form-text">Formato: AIO-###. El valor final se confirma al guardar.</div>
+        </div>
+
+        <!-- Descripción -->
+        <div class="col-12">
+          <label for="description" class="form-label">Descripción<span class="text-danger">*</span></label>
+          <input type="text" class="form-control form-control-lg" id="description" name="description" value="<?= h($values['description']) ?>" required placeholder="Nombre del material">
+        </div>
+
+        <!-- Marca / Modelo / Serie -->
+        <div class="col-sm-4">
+          <label for="brand" class="form-label">Marca</label>
+          <input type="text" class="form-control" id="brand" name="brand" value="<?= h($values['brand']) ?>">
+        </div>
+        <div class="col-sm-4">
+          <label for="model" class="form-label">Modelo</label>
+          <input type="text" class="form-control" id="model" name="model" value="<?= h($values['model']) ?>">
+        </div>
+        <div class="col-sm-4">
+          <label for="serialNumber" class="form-label">Número de Serie</label>
+          <input type="text" class="form-control" id="serialNumber" name="serialNumber" value="<?= h($values['serialNumber']) ?>">
+        </div>
+
+        <!-- Pedimento (opcional) -->
+        <div class="col-sm-6">
+          <label for="pedimento" class="form-label">Pedimento (opcional)</label>
+          <input type="text" class="form-control" id="pedimento" name="pedimento" value="<?= h($values['pedimento']) ?>" placeholder="Ej. 21 48 1234 0001234">
+        </div>
+
+        <div class="col-sm-6">
+          <label for="qty" class="form-label">Cantidad (Qty)</label>
+          <input type="number" class="form-control" id="qty" name="qty" value="<?= h($values['qty']) ?>" placeholder="1">
+        </div>
+
+        <div class="col-sm-3">
+          <label for="hw_nre" class="form-label">HW NRE no.</label>
+          <input type="text" class="form-control" id="hw_nre" name="hw_nre" value="<?= h($values['hw_nre']) ?>">
+        </div>
+        <div class="col-sm-3">
+          <label for="hw_asset" class="form-label">HW Asset</label>
+          <input type="text" class="form-control" id="hw_asset" name="hw_asset" value="<?= h($values['hw_asset']) ?>">
+        </div>
+        <div class="col-sm-3">
+          <label for="zl_asset" class="form-label">ZL Asset</label>
+          <input type="text" class="form-control" id="zl_asset" name="zl_asset" value="<?= h($values['zl_asset']) ?>">
+        </div>
+        <div class="col-sm-3">
+          <label for="ai_asset" class="form-label">AI Asset</label>
+          <input type="text" class="form-control" id="ai_asset" name="ai_asset" value="<?= h($values['ai_asset']) ?>">
+        </div>
+        <div class="col-sm-3">
+          <label for="xy_asset" class="form-label">XY Asset</label>
+          <input type="text" class="form-control" id="xy_asset" name="xy_asset" value="<?= h($values['xy_asset']) ?>">
+        </div>
+
+        <div class="col-sm-4">
+          <label for="received_date" class="form-label">Fecha de Recepción</label>
+          <input type="text" class="form-control" id="received_date" name="received_date" value="<?= h($values['received_date']) ?>" placeholder="Ej. 2023-01-06">
+        </div>
+        <div class="col-sm-4">
+          <label for="years" class="form-label">Years</label>
+          <input type="text" class="form-control" id="years" name="years" value="<?= h($values['years']) ?>">
+        </div>
+        <div class="col-sm-4">
+          <label for="come_form" class="form-label">Come form</label>
+          <input type="text" class="form-control" id="come_form" name="come_form" value="<?= h($values['come_form']) ?>">
+        </div>
+
+        <div class="col-12 col-md-6">
+          <label for="location" class="form-label">Ubicación<span class="text-danger">*</span></label>
+          <input type="text" class="form-control form-control-lg" id="location" name="location" value="<?= h($values['location']) ?>" required placeholder="Ej. Línea 3 / Almacén">
+        </div>
+        <div class="col-12 col-md-4">
+          <label for="department" class="form-label">Departamento<span class="text-danger">*</span></label>
+          <input type="text" class="form-control form-control-lg" id="department" name="department" value="<?= h($values['department']) ?>" required placeholder="Testing / Producción">
+        </div>
+        <div class="col-12 col-md-4">
+          <label for="owner" class="form-label">Responsable<span class="text-danger">*</span></label>
+          <input type="text" class="form-control form-control-lg" id="owner" name="owner" value="<?= h($values['owner']) ?>" required placeholder="Nombre / Puesto">
+        </div>
+
+        <!-- Estado -->
+        <div class="col-sm-6">
+          <label for="status" class="form-label">Estado</label>
+          <select id="status" name="status" class="form-select">
+            <option <?= $values['status']==='Activo'?'selected':'' ?>>Activo</option>
+            <option <?= $values['status']==='Scrap'?'selected':'' ?>>Scrap</option>
+          </select>
+          <div class="form-text">Si das de baja, usa “Scrap” para reflejar que ya no está disponible.</div>
+        </div>
+
+        <!-- Comentarios -->
+        <div class="col-12">
+          <label for="comments" class="form-label">Comentarios</label>
+          <textarea id="comments" name="comments" class="form-control" rows="3" placeholder="Notas adicionales"><?= h($values['comments']) ?></textarea>
+        </div>
+
+        <!-- FOTO (CÁMARA MÓVIL) -->
+        <div class="col-12 col-md-6">
+          <label class="form-label fw-bold"><i class="fa fa-camera me-1"></i> Foto del material</label>
+          <input
+            type="file"
+            id="picture"
+            name="picture"
+            accept="image/*"
+            class="form-control form-control-lg"
+          >
+          <div class="form-text text-muted small"><i class="fa fa-info-circle"></i> Se comprimirá automáticamente si es muy grande.</div>
+          <div class="mt-2 d-none text-center bg-dark rounded p-2" id="imgPreviewBox">
+            <img id="imgPreview" src="" alt="preview" class="img-fluid rounded" style="max-height:300px;">
+             <div class="text-white small mt-1" id="compressionInfo"></div>
+          </div>
+        </div>
+
+        <!-- DOCUMENTO (PDF opcional) -->
+        <div class="col-md-6">
+          <label class="form-label">Documento (PDF opcional)</label>
+          <input type="file" id="document" name="document" accept="application/pdf" class="form-control">
+          <div class="mt-2 d-none" id="pdfPreviewBox">
+            <iframe id="pdfPreview" title="PDF" style="width:100%;height:320px;border:1px solid #333;border-radius:8px;"></iframe>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 d-flex gap-2">
+        <a href="aio_admin.php" class="btn btn-outline-secondary btn-lg flex-fill">Cancelar</a>
+        <button type="submit" class="btn btn-success btn-lg flex-fill">
+          <i class="fa fa-save me-2"></i>Guardar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// Vista previa de imagen (móvil/escritorio) + Compresión
+const pictureInput = document.getElementById('picture');
+if (pictureInput) {
+  pictureInput.addEventListener('change', async () => {
+    const file = pictureInput.files?.[0];
+    const box  = document.getElementById('imgPreviewBox');
+    const img  = document.getElementById('imgPreview');
+    const info = document.getElementById('compressionInfo');
+
+    if (!file) {
+      img.src = '';
+      box.classList.add('d-none');
+      return;
+    }
+
+     // UX Immediate preview
+    const url = URL.createObjectURL(file);
+    img.src = url;
+    box.classList.remove('d-none');
+    
+    if (info) info.textContent = `Original: ${(file.size/1024/1024).toFixed(2)} MB`;
+
+     // Only compress if > 1MB or if it's HEIC
+    if (file.size > 1024 * 1024 || file.type === 'image/heic' || file.type === 'image/heif') {
+        if(info) info.textContent += " ⏳ Optimizando...";
+        try {
+            const compressedBlob = await compressImage(file);
+            // Replace file in input
+            const dt = new DataTransfer();
+            const newFile = new File([compressedBlob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", { type: "image/jpeg" });
+            dt.items.add(newFile);
+            pictureInput.files = dt.files;
+            
+            // Update preview/info
+            img.src = URL.createObjectURL(compressedBlob);
+            if(info) info.textContent = `Optimizado: ${(compressedBlob.size/1024/1024).toFixed(2)} MB (Listo para subir)`;
+            
+        } catch (e) {
+            console.error("Compression failed", e);
+            if(info) info.textContent += " ❌ Error al optimizar";
+        }
+    }
+  });
+}
+
+function compressImage(file) {
+    return new Promise((resolve, reject) => {
+        const maxWidth = 1200;
+        const maxHeight = 1200;
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = event => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                let width = img.width;
+                let height = img.height;
+                
+                if (width > maxWidth || height > maxHeight) {
+                    if (width > height) {
+                        height = Math.round(height * (maxWidth / width));
+                        width = maxWidth;
+                    } else {
+                        width = Math.round(width * (maxHeight / height));
+                        height = maxHeight;
+                    }
+                }
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                canvas.toBlob(blob => {
+                    resolve(blob);
+                }, 'image/jpeg', 0.8); 
+            };
+            img.onerror = err => reject(err);
+        };
+        reader.onerror = err => reject(err);
+    });
+}
+
+// Vista previa de PDF (si el navegador lo permite)
+const pdfInput = document.getElementById('document');
+if (pdfInput) {
+  pdfInput.addEventListener('change', () => {
+    const file = pdfInput.files?.[0];
+    const box  = document.getElementById('pdfPreviewBox');
+    const frame= document.getElementById('pdfPreview');
+    if (file) {
+      const url = URL.createObjectURL(file);
+      frame.src = url;
+      box.classList.remove('d-none');
+    } else {
+      frame.src = '';
+      box.classList.add('d-none');
+    }
+  });
+}
+</script>
+
+<?php include __DIR__ . '/partials/footer.php'; ?>
